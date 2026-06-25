@@ -1,1 +1,11 @@
 venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+*.env
+secrets.toml
+.streamlit/secrets.toml
+credentials.json
+outputs/
+*.db
