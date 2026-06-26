@@ -4,163 +4,277 @@ import pandas as pd
 import datetime
 import consultas
 
-# ================================================================
-# CONFIGURACIÓN DE PÁGINA Y ESTILOS
-# ================================================================
 st.set_page_config(
     page_title="Sistema RRHH",
     page_icon="🏢",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="auto"
 )
 
 st.markdown("""
 <style>
-    /* Fondo general */
-    .stApp { background-color: #f5f7fa; }
+    /* ===== FONDO Y ESTRUCTURA ===== */
+    .stApp { background-color: #eef2f7; }
+    #MainMenu, footer, header { visibility: hidden; }
 
-    /* Oculta el menú de hamburguesa y footer de Streamlit */
-    #MainMenu, footer { visibility: hidden; }
-
-    /* Botones principales grandes */
-    .btn-portal {
-        background-color: #1a1a2e;
-        color: white;
-        padding: 2rem;
-        border-radius: 12px;
-        text-align: center;
-        cursor: pointer;
-        transition: background 0.2s;
-        margin: 0.5rem;
+    /* ===== SIDEBAR ===== */
+    [data-testid="stSidebar"] { background-color: #1e293b !important; }
+    [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+    [data-testid="stSidebar"] .stButton button {
+        background-color: #ef4444 !important;
+        color: white !important;
+        border: none !important;
     }
-    .btn-portal:hover { background-color: #16213e; }
+    [data-testid="stSidebar"] hr { border-color: #334155 !important; }
 
-    /* Tarjetas de información */
+    /* ===== INPUTS (selectores específicos de Streamlit) ===== */
+    [data-testid="stTextInput"] input,
+    [data-testid="stNumberInput"] input,
+    [data-testid="stDateInput"] input,
+    [data-testid="stTextArea"] textarea {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stTextArea"] textarea:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+    }
+    /* Labels de inputs */
+    [data-testid="stTextInput"] label,
+    [data-testid="stNumberInput"] label,
+    [data-testid="stDateInput"] label,
+    [data-testid="stTextArea"] label,
+    [data-testid="stSelectbox"] label,
+    [data-testid="stCheckbox"] label,
+    [data-testid="stFileUploader"] label {
+        color: #374151 !important;
+        font-weight: 600 !important;
+        font-size: 0.875rem !important;
+    }
+    /* Selectbox */
+    [data-testid="stSelectbox"] > div > div {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+    }
+
+    /* ===== BOTONES PRINCIPALES ===== */
+    .stButton button[kind="primary"] {
+        background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 0.6rem 1.2rem !important;
+        transition: all 0.2s !important;
+    }
+    .stButton button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
+    }
+    .stButton button[kind="secondary"] {
+        background-color: #f1f5f9 !important;
+        color: #374151 !important;
+        border: 1.5px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ===== TARJETAS ===== */
     .card {
         background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border-radius: 14px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05);
+        border: 1px solid #e8edf3;
     }
+    .card-blue  { border-top: 4px solid #3b82f6; }
+    .card-red   { border-top: 4px solid #ef4444; }
+    .card-green { border-top: 4px solid #10b981; }
 
-    /* Encabezado de sección */
-    .seccion-titulo {
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: #1a1a2e;
-        margin-bottom: 1rem;
-    }
-
-    /* Badge de estado de cuota */
-    .badge-pendiente { color: #f59e0b; font-weight: 600; }
-    .badge-descontada { color: #10b981; font-weight: 600; }
-    .badge-pausada { color: #ef4444; font-weight: 600; }
-
-    /* Métrica neto */
-    .neto-box {
-        background: #1a1a2e;
-        color: white;
-        border-radius: 12px;
-        padding: 1.5rem;
+    /* ===== PORTAL HOME ===== */
+    .portal-card {
+        background: white;
+        border-radius: 18px;
+        padding: 2.5rem 2rem;
         text-align: center;
-        font-size: 1.8rem;
-        font-weight: 700;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        border: 1px solid #e8edf3;
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
     }
+    .portal-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+    }
+    .portal-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+    .portal-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; letter-spacing: .5px; }
+    .portal-desc { color: #64748b; font-size: 0.9rem; margin-top: 0.4rem; }
+
+    /* ===== NETO ===== */
+    .neto-box {
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+        color: white !important;
+        border-radius: 14px;
+        padding: 2rem;
+        text-align: center;
+        font-size: 2.2rem;
+        font-weight: 800;
+        letter-spacing: 1px;
+        box-shadow: 0 8px 32px rgba(15,23,42,0.3);
+        margin-top: 1.25rem;
+    }
+    .neto-label { font-size: 0.85rem; font-weight: 400; letter-spacing: 2px; opacity: 0.7; margin-bottom: 0.5rem; }
+
+    /* ===== TABS ===== */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #f1f5f9;
+        border-radius: 10px;
+        padding: 4px;
+        gap: 4px;
+        border: 1px solid #e2e8f0;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 7px;
+        font-weight: 500;
+        color: #64748b;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background: white !important;
+        color: #1e293b !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    /* ===== FILE UPLOADER ===== */
+    [data-testid="stFileUploader"] section {
+        background-color: #f8fafc !important;
+        border: 2px dashed #cbd5e1 !important;
+        border-radius: 10px !important;
+    }
+    [data-testid="stFileUploader"] section:hover {
+        border-color: #3b82f6 !important;
+        background-color: #eff6ff !important;
+    }
+    [data-testid="stFileUploader"] span,
+    [data-testid="stFileUploader"] p,
+    [data-testid="stFileUploader"] small {
+        color: #374151 !important;
+    }
+    [data-testid="stFileUploader"] button {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        border: none !important;
+    }
+
+    /* ===== DATAFRAME ===== */
+    div[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+
+    /* ===== TIPOGRAFÍA GENERAL ===== */
+    h1, h2, h3 { color: #1e293b !important; }
+    p, span, label { color: #374151; }
+
+    /* ===== HEADER BAR ===== */
+    .top-bar {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 14px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .top-bar .app-title { font-size: 1.4rem; font-weight: 700; }
+    .top-bar .app-sub   { font-size: 0.85rem; opacity: 0.65; }
 </style>
 """, unsafe_allow_html=True)
 
-# ================================================================
-# ESTADO DE SESIÓN
-# Streamlit recarga la página con cada interacción, así que
-# usamos st.session_state para "recordar" quién está logueado.
-# ================================================================
-for k, v in [
-    ("logged_in", False),
-    ("rol", None),
-    ("username", None),
-    ("cuil", None),
-    ("portal", None),   # 'asociado' o 'admin'
-]:
+for k, v in [("logged_in", False), ("rol", None), ("username", None), ("cuil", None), ("portal", None), ("aso_edit", {}), ("aso_edit_show", False)]:
     if k not in st.session_state:
         st.session_state[k] = v
 
-
 def logout():
-    """Limpia toda la sesión y vuelve al inicio."""
     for k in list(st.session_state.keys()):
         del st.session_state[k]
     st.rerun()
 
-
 def fmt_moneda(v):
-    """Formatea un número como moneda argentina: 1234567.8 → 1.234.567,80"""
     try:
         return f"{float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except:
         return "0,00"
 
-
 # ================================================================
-# PANTALLA 0 — SELECCIÓN DE PORTAL
+# PANTALLA INICIO
 # ================================================================
 if st.session_state.portal is None:
+    st.markdown("""
+    <div class="top-bar">
+        <div>
+            <div class="app-title">🏢 Sistema de Gestión de Personal</div>
+            <div class="app-sub">Cooperativa Agroindustrial · RRHH</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col_logo, col_titulo = st.columns([1, 4])
-    with col_titulo:
-        st.markdown("# 🏢 Sistema de Gestión de Personal")
-        st.markdown("#### Seleccioná tu acceso para continuar")
     st.markdown("<br>", unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 1, 1])
-
+    _, col1, col2, _ = st.columns([1, 2, 2, 1])
     with col1:
         st.markdown("""
-        <div class="card" style="text-align:center; padding:2rem;">
-            <div style="font-size:3rem;">👤</div>
-            <div style="font-size:1.2rem; font-weight:700; margin-top:0.5rem;">SOY ASOCIADO</div>
-            <div style="color:#666; margin-top:0.5rem;">Consultá tus recibos, préstamos y más</div>
+        <div class="portal-card card-blue">
+            <div class="portal-icon">👤</div>
+            <div class="portal-title">SOY ASOCIADO</div>
+            <div class="portal-desc">Consultá tus recibos, préstamos, sanciones e historial médico</div>
         </div>
         """, unsafe_allow_html=True)
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         if st.button("Ingresar como Asociado", use_container_width=True, type="primary"):
             st.session_state.portal = "asociado"
             st.rerun()
-
     with col2:
         st.markdown("""
-        <div class="card" style="text-align:center; padding:2rem;">
-            <div style="font-size:3rem;">⚙️</div>
-            <div style="font-size:1.2rem; font-weight:700; margin-top:0.5rem;">ADMINISTRACIÓN</div>
-            <div style="color:#666; margin-top:0.5rem;">Panel de gestión para RRHH</div>
+        <div class="portal-card card-red">
+            <div class="portal-icon">⚙️</div>
+            <div class="portal-title">ADMINISTRACIÓN</div>
+            <div class="portal-desc">Panel de gestión para el equipo de Recursos Humanos</div>
         </div>
         """, unsafe_allow_html=True)
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         if st.button("Ingresar como Administración", use_container_width=True):
             st.session_state.portal = "admin"
             st.rerun()
-
 
 # ================================================================
 # PORTAL ASOCIADO
 # ================================================================
 elif st.session_state.portal == "asociado":
 
-    # --- LOGIN ---
     if not st.session_state.logged_in:
+        st.markdown("""
+        <div class="top-bar">
+            <div>
+                <div class="app-title">👤 Portal del Asociado</div>
+                <div class="app-sub">Cooperativa Agroindustrial · RRHH</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         col_back, _ = st.columns([1, 8])
         with col_back:
-            if st.button("← Volver"):
+            if st.button("← Volver al inicio"):
                 st.session_state.portal = None
                 st.rerun()
-
         st.markdown("<br>", unsafe_allow_html=True)
         _, col_form, _ = st.columns([1, 2, 1])
-
         with col_form:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown("## 👤 Portal del Asociado")
-            tab_login, tab_registro = st.tabs(["🔐 Ya tengo cuenta", "📝 Registrarme por primera vez"])
-
+            st.markdown('<div class="card card-blue">', unsafe_allow_html=True)
+            tab_login, tab_registro = st.tabs(["🔐 Ya tengo cuenta", "📝 Registrarme"])
             with tab_login:
                 with st.form("form_login_aso"):
                     cuil_in = st.text_input("CUIL (sin guiones)", placeholder="20123456789")
@@ -178,7 +292,6 @@ elif st.session_state.portal == "asociado":
                                 st.error("CUIL o contraseña incorrectos.")
                         else:
                             st.warning("Completá todos los campos.")
-
             with tab_registro:
                 st.info("Tu CUIL debe haber sido cargado previamente por RRHH.")
                 with st.form("form_registro_aso"):
@@ -192,19 +305,13 @@ elif st.session_state.portal == "asociado":
                             st.error("Las contraseñas no coinciden.")
                         else:
                             ok, msg = consultas.validar_registro_asociado(reg_cuil, reg_pass)
-                            if ok:
-                                st.success(msg)
-                            else:
-                                st.error(msg)
+                            st.success(msg) if ok else st.error(msg)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- ASOCIADO LOGUEADO ---
     else:
         cuil = st.session_state.cuil
         asociado = consultas.buscar_asociado_por_cuil(cuil)
         nombre = asociado["nombre_completo"] if asociado else cuil
-
-        # Sidebar
         with st.sidebar:
             st.markdown(f"### 👤 {nombre}")
             st.markdown(f"CUIL: `{cuil}`")
@@ -212,97 +319,64 @@ elif st.session_state.portal == "asociado":
             if st.button("Cerrar Sesión", use_container_width=True):
                 logout()
 
-        st.markdown(f"# Bienvenido/a, {nombre.split()[0]}")
-        st.markdown("<br>", unsafe_allow_html=True)
-
+        st.markdown(f"""
+        <div class="top-bar">
+            <div>
+                <div class="app-title">Bienvenido/a, {nombre.split()[0]}</div>
+                <div class="app-sub">Portal del Asociado · CUIL {cuil}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         tab_rec, tab_pre, tab_san, tab_med, tab_cuenta = st.tabs([
-            "📄 Mis Recibos",
-            "💰 Mis Préstamos",
-            "⚠️ Sanciones",
-            "🏥 Historial Médico",
-            "🔐 Mi Cuenta"
+            "📄 Mis Recibos", "💰 Mis Préstamos", "⚠️ Sanciones", "🏥 Historial Médico", "🔐 Mi Cuenta"
         ])
 
-        # ---- TAB: MIS RECIBOS ----
         with tab_rec:
             periodos = consultas.obtener_periodos_asociado(cuil)
-
             if not periodos:
-                st.info("Todavía no hay liquidaciones disponibles. El administrador debe cargarlas.")
+                st.info("Todavía no hay liquidaciones disponibles.")
             else:
-                periodo_sel = st.selectbox("📅 Seleccioná el período:", periodos)
+                periodo_sel = st.selectbox("📅 Período:", periodos)
                 df_liq = consultas.obtener_liquidacion(cuil, periodo_sel)
-
                 if df_liq.empty:
                     st.warning("No se encontraron datos para este período.")
                 else:
-                    # Info de sector y categoría
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown('<div class="card">', unsafe_allow_html=True)
-                        st.write(f"**Sector:** {df_liq['sector'].iloc[0]}")
-                        st.write(f"**Categoría:** {df_liq['categoria'].iloc[0]}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-                    # Detalle de conceptos
+                    st.markdown(f'<div class="card"><b>Sector:</b> {df_liq["sector"].iloc[0]} &nbsp;|&nbsp; <b>Categoría:</b> {df_liq["categoria"].iloc[0]}</div>', unsafe_allow_html=True)
                     st.markdown("#### Detalle de la Liquidación")
                     tipos_validos = ["Remunerativo", "No Remunerativo", "Retención", "Redondeo"]
-                    df_detalle = df_liq[df_liq["tipo_concepto"].isin(tipos_validos)].copy()
-
-                    # Retenciones en negativo para que se vea claro
-                    df_detalle["importe_real"] = df_detalle.apply(
-                        lambda r: -abs(r["importe"]) if r["tipo_concepto"] == "Retención" else abs(r["importe"]),
-                        axis=1
-                    )
-                    df_detalle = df_detalle.sort_values("descripcion")
-                    df_vista = df_detalle[["descripcion", "cantidad", "importe_real"]].copy()
+                    df_det = df_liq[df_liq["tipo_concepto"].isin(tipos_validos)].copy()
+                    df_det["importe_real"] = df_det.apply(
+                        lambda r: -abs(r["importe"]) if r["tipo_concepto"] == "Retención" else abs(r["importe"]), axis=1)
+                    df_vista = df_det[["descripcion", "cantidad", "importe_real"]].copy()
                     df_vista.columns = ["Concepto", "Cantidad", "Importe ($)"]
                     df_vista["Importe ($)"] = df_vista["Importe ($)"].apply(fmt_moneda)
-                    st.dataframe(df_vista, use_container_width=True, hide_index=True)
+                    st.dataframe(df_vista.sort_values("Concepto"), use_container_width=True, hide_index=True)
+                    neto = df_liq["neto"].iloc[0] if "neto" in df_liq.columns and df_liq["neto"].iloc[0] else df_det["importe_real"].sum()
+                    st.markdown(f'<div class="neto-box"><div class="neto-label">NETO A COBRAR</div>$ {fmt_moneda(neto)}</div>', unsafe_allow_html=True)
 
-                    # Neto
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    neto = df_liq["neto"].iloc[0] if "neto" in df_liq.columns and df_liq["neto"].iloc[0] else df_detalle["importe_real"].sum()
-                    st.markdown(f'<div class="neto-box">NETO A COBRAR<br>$ {fmt_moneda(neto)}</div>', unsafe_allow_html=True)
-
-        # ---- TAB: PRÉSTAMOS ----
         with tab_pre:
             prestamos = consultas.obtener_prestamos_asociado(cuil)
             if not prestamos:
                 st.info("No registrás préstamos activos.")
             else:
                 for p in prestamos:
-                    st.markdown('<div class="card">', unsafe_allow_html=True)
-                    st.markdown(f"**Préstamo otorgado el {p['fecha_otorgamiento']}**")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"Monto total: **$ {fmt_moneda(p['monto_total'])}**")
-                    with col2:
-                        st.write(f"Cuotas: **{p['cantidad_cuotas']}**")
-
+                    st.markdown(f'<div class="card"><b>Préstamo otorgado el {p["fecha_otorgamiento"]}</b><br>Monto total: <b>$ {fmt_moneda(p["monto_total"])}</b> | Cuotas: <b>{p["cantidad_cuotas"]}</b></div>', unsafe_allow_html=True)
                     cuotas = p.get("prestamos_cuotas", [])
                     if cuotas:
                         df_c = pd.DataFrame(cuotas)[["numero_cuota", "monto_cuota", "fecha_vencimiento", "estado"]]
                         df_c.columns = ["Cuota N°", "Monto ($)", "Vencimiento", "Estado"]
                         df_c["Monto ($)"] = df_c["Monto ($)"].apply(fmt_moneda)
                         st.dataframe(df_c, use_container_width=True, hide_index=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
-        # ---- TAB: SANCIONES ----
         with tab_san:
             sanciones = consultas.obtener_sanciones_asociado(cuil)
             if not sanciones:
                 st.info("No registrás sanciones.")
             else:
                 for s in sanciones:
-                    st.markdown('<div class="card">', unsafe_allow_html=True)
                     color = "#ef4444" if s["tipo"] == "Suspensión" else "#f59e0b"
-                    st.markdown(f"<span style='color:{color}; font-weight:700'>⚠️ {s['tipo']}</span>", unsafe_allow_html=True)
-                    st.write(f"**Período:** {s['fecha_desde']} al {s['fecha_hasta']}")
-                    st.write(f"**Motivo:** {s['motivo']}")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card"><span style="color:{color};font-weight:700">⚠️ {s["tipo"]}</span><br><b>Período:</b> {s["fecha_desde"]} al {s["fecha_hasta"]}<br><b>Motivo:</b> {s["motivo"]}</div>', unsafe_allow_html=True)
 
-        # ---- TAB: HISTORIAL MÉDICO ----
         with tab_med:
             historial = consultas.obtener_historial_medico(cuil)
             if not historial:
@@ -312,7 +386,6 @@ elif st.session_state.portal == "asociado":
                 df_h.columns = ["Fecha", "Motivo"]
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
 
-        # ---- TAB: MI CUENTA ----
         with tab_cuenta:
             st.markdown("### Cambiar contraseña")
             with st.form("form_cambiar_pass"):
@@ -327,26 +400,31 @@ elif st.session_state.portal == "asociado":
                         consultas.cambiar_clave_asociado(cuil, nueva)
                         st.success("Contraseña actualizada correctamente.")
 
-
 # ================================================================
-# PORTAL ADMINISTRACIÓN
+# PORTAL ADMIN
 # ================================================================
 elif st.session_state.portal == "admin":
 
-    # --- LOGIN ADMIN ---
     if not st.session_state.logged_in:
+        st.markdown("""
+        <div class="top-bar">
+            <div>
+                <div class="app-title">⚙️ Panel Administrativo</div>
+                <div class="app-sub">Cooperativa Agroindustrial · RRHH</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         col_back, _ = st.columns([1, 8])
         with col_back:
-            if st.button("← Volver"):
+            if st.button("← Volver al inicio"):
                 st.session_state.portal = None
                 st.rerun()
-
         st.markdown("<br>", unsafe_allow_html=True)
         _, col_form, _ = st.columns([1, 2, 1])
-
         with col_form:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown("## ⚙️ Acceso Administrativo")
+            st.markdown('<div class="card card-red">', unsafe_allow_html=True)
+            st.markdown("### 🔐 Acceso Administrativo")
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
             with st.form("form_login_admin"):
                 user_in = st.text_input("Usuario")
                 pass_in = st.text_input("Contraseña", type="password")
@@ -364,133 +442,165 @@ elif st.session_state.portal == "admin":
                         st.warning("Completá todos los campos.")
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- ADMIN/AUXILIAR LOGUEADO ---
     else:
         rol = st.session_state.rol
-
         with st.sidebar:
-            st.markdown(f"### ⚙️ Panel de Control")
+            st.markdown("### ⚙️ Panel de Control")
             st.markdown(f"**{st.session_state.username}** · {rol.upper()}")
             st.divider()
-
-            # Opciones según rol
             opciones = ["👤 Asociados", "💰 Préstamos", "⚠️ Sanciones", "🏥 Inasistencias", "📊 Reportes"]
             if rol == "admin":
                 opciones += ["👥 Usuarios", "📁 Cargar Excel", "🖨️ Emitir Recibos", "🔧 Configuración"]
-
             seccion = st.radio("Navegación:", opciones, label_visibility="collapsed")
             st.divider()
             if st.button("Cerrar Sesión", use_container_width=True):
                 logout()
 
-        # ============================================================
-        # SECCIÓN: ASOCIADOS
-        # ============================================================
+        # ---- ASOCIADOS ----
         if seccion == "👤 Asociados":
             st.markdown("# 👤 Gestión de Asociados")
+            tab_nuevo, tab_buscar, tab_lista, tab_import = st.tabs(["➕ Nuevo Asociado", "🔍 Buscar / Modificar", "📋 Listado", "📥 Importar Maestro"])
 
-            tab_form, tab_buscar, tab_lista = st.tabs(["➕ Nuevo / Modificar", "🔍 Buscar", "📋 Listado completo"])
-
-            with tab_form:
-                # Si venimos de "buscar y editar", pre-cargamos los datos
-                edit = st.session_state.get("aso_edit", {})
+            def _form_asociado(edit, form_key):
+                """Renderiza el formulario de asociado. edit={} para nuevo, dict con datos para edición."""
                 sectores = consultas.listar_sectores()
                 nombres_sectores = [s["nombre"] for s in sectores]
-
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                with st.form("form_asociado"):
+                categorias = consultas.listar_categorias()
+                with st.form(form_key):
                     col1, col2 = st.columns(2)
                     with col1:
-                        cuil_m      = st.text_input("CUIL *", value=edit.get("cuil", ""))
-                        nro_m       = st.text_input("Nro Asociado", value=edit.get("nro_asociado") or "")
-                        nombre_m    = st.text_input("Nombre Completo *", value=edit.get("nombre_completo", ""))
-                        dni_m       = st.text_input("DNI", value=edit.get("dni") or "")
-                        telefono_m  = st.text_input("Teléfono", value=edit.get("telefono") or "")
+                        cuil_m     = st.text_input("CUIL *", value=edit.get("cuil", ""))
+                        nro_m      = st.text_input("Nro Asociado", value=edit.get("nro_asociado") or "")
+                        nombre_m   = st.text_input("Nombre Completo *", value=edit.get("nombre_completo", ""))
+                        dni_m      = st.text_input("DNI", value=edit.get("dni") or "")
+                        telefono_m = st.text_input("Teléfono", value=edit.get("telefono") or "")
                     with col2:
                         domicilio_m = st.text_input("Domicilio", value=edit.get("domicilio") or "")
                         localidad_m = st.text_input("Localidad", value=edit.get("localidad") or "")
                         provincia_m = st.text_input("Provincia", value=edit.get("provincia") or "")
-
                         if nombres_sectores:
-                            idx = nombres_sectores.index(edit["sector"]) if edit.get("sector") in nombres_sectores else 0
-                            sector_m = st.selectbox("Sector *", nombres_sectores, index=idx)
+                            idx_s = nombres_sectores.index(edit["sector"]) if edit.get("sector") in nombres_sectores else 0
+                            sector_m = st.selectbox("Sector *", nombres_sectores, index=idx_s)
                         else:
                             sector_m = st.text_input("Sector *", value=edit.get("sector") or "")
-                            st.caption("⚠️ No hay sectores cargados. Cargalos en Configuración.")
-
-                        cat_m = st.text_input("Categoría", value=edit.get("categoria") or "")
+                            st.caption("⚠️ No hay sectores cargados. Ingresá en Configuración.")
+                        if categorias:
+                            cat_actual = edit.get("categoria") or ""
+                            opciones_cat = categorias if cat_actual in categorias else ([cat_actual] + categorias if cat_actual else categorias)
+                            idx_c = opciones_cat.index(cat_actual) if cat_actual in opciones_cat else 0
+                            cat_m = st.selectbox("Categoría", opciones_cat, index=idx_c)
+                        else:
+                            cat_m = st.text_input("Categoría", value=edit.get("categoria") or "")
                         try:
                             fi_val = datetime.date.fromisoformat(edit["fecha_ingreso"]) if edit.get("fecha_ingreso") else datetime.date.today()
                         except:
                             fi_val = datetime.date.today()
                         fecha_ing_m = st.date_input("Fecha de Ingreso", value=fi_val)
+                    saved = st.form_submit_button("💾 Guardar Asociado", use_container_width=True, type="primary")
+                if saved:
+                    if not cuil_m or not nombre_m:
+                        st.error("CUIL y Nombre son obligatorios.")
+                    else:
+                        consultas.guardar_o_actualizar_asociado({
+                            "cuil": cuil_m, "nro_asociado": nro_m or None,
+                            "nombre_completo": nombre_m, "dni": dni_m or None,
+                            "domicilio": domicilio_m or None, "localidad": localidad_m or None,
+                            "provincia": provincia_m or None, "telefono": telefono_m or None,
+                            "sector": sector_m or None, "categoria": cat_m or None,
+                            "fecha_ingreso": str(fecha_ing_m), "activo": True
+                        })
+                        st.success(f"✅ Asociado {nombre_m} guardado correctamente.")
+                        return True
+                return False
 
-                    if st.form_submit_button("💾 Guardar Asociado", use_container_width=True, type="primary"):
-                        if not cuil_m or not nombre_m:
-                            st.error("CUIL y Nombre son obligatorios.")
-                        else:
-                            consultas.guardar_o_actualizar_asociado({
-                                "cuil": cuil_m,
-                                "nro_asociado": nro_m or None,
-                                "nombre_completo": nombre_m,
-                                "dni": dni_m or None,
-                                "domicilio": domicilio_m or None,
-                                "localidad": localidad_m or None,
-                                "provincia": provincia_m or None,
-                                "telefono": telefono_m or None,
-                                "sector": sector_m or None,
-                                "categoria": cat_m or None,
-                                "fecha_ingreso": str(fecha_ing_m),
-                                "activo": True
-                            })
-                            st.success(f"✅ Asociado {nombre_m} guardado correctamente.")
-                            st.session_state.aso_edit = {}
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                if edit:
-                    if st.button("✖ Cancelar edición"):
-                        st.session_state.aso_edit = {}
-                        st.rerun()
+            with tab_nuevo:
+                if _form_asociado({}, "form_nuevo_asociado"):
+                    st.rerun()
 
             with tab_buscar:
-                cuil_b = st.text_input("Ingresá el CUIL a buscar:")
-                if cuil_b:
-                    aso = consultas.buscar_asociado_por_cuil(cuil_b)
-                    if aso:
-                        st.markdown('<div class="card">', unsafe_allow_html=True)
-                        st.markdown(f"### {aso['nombre_completo']}")
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.write(f"**CUIL:** {aso['cuil']}")
-                            st.write(f"**DNI:** {aso.get('dni') or '-'}")
-                            st.write(f"**Nro Asociado:** {aso.get('nro_asociado') or '-'}")
-                        with col2:
-                            st.write(f"**Sector:** {aso.get('sector') or '-'}")
-                            st.write(f"**Categoría:** {aso.get('categoria') or '-'}")
-                            st.write(f"**Ingreso:** {aso.get('fecha_ingreso') or '-'}")
-                        with col3:
-                            st.write(f"**Domicilio:** {aso.get('domicilio') or '-'}")
-                            st.write(f"**Localidad:** {aso.get('localidad') or '-'}")
-                            st.write(f"**Teléfono:** {aso.get('telefono') or '-'}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        if st.button("✏️ Editar este asociado"):
-                            st.session_state.aso_edit = aso
+                st.markdown("### 🔍 Buscar por nombre o CUIL")
+                filtro = st.text_input("Escribí para filtrar:", placeholder="Nombre o CUIL...", key="buscar_filtro")
+                todos_aso = consultas.listar_asociados_activos()
+                if filtro:
+                    fl = filtro.lower()
+                    resultados = [a for a in todos_aso
+                                  if fl in (a.get("nombre_completo") or "").lower()
+                                  or fl in str(a.get("cuil") or "")]
+                else:
+                    resultados = todos_aso
+
+                if resultados:
+                    st.caption(f"{len(resultados)} asociado(s) encontrado(s){' — mostrando primeros 25' if len(resultados) > 25 else ''}.")
+                    for a in resultados[:25]:
+                        with st.container():
+                            c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
+                            c1.write(f"**{a['nombre_completo']}**")
+                            c2.write(a.get("cuil") or "-")
+                            c3.write(a.get("sector") or "-")
+                            with c4:
+                                if st.button("✏️ Editar", key=f"edit_btn_{a['cuil']}"):
+                                    aso_full = consultas.buscar_asociado_por_cuil(a["cuil"])
+                                    st.session_state.aso_edit = aso_full or a
+                                    st.session_state.aso_edit_show = True
+                                    st.rerun()
+                elif filtro:
+                    st.warning("No se encontraron asociados que coincidan.")
+
+                # Formulario de edición inline (aparece abajo al hacer clic en Editar)
+                if st.session_state.get("aso_edit_show") and st.session_state.get("aso_edit"):
+                    aso_e = st.session_state.aso_edit
+                    st.divider()
+                    st.markdown(f"### ✏️ Editando: {aso_e.get('nombre_completo', '')}")
+                    col_cancel, _ = st.columns([2, 8])
+                    with col_cancel:
+                        if st.button("✖ Cancelar"):
+                            st.session_state.aso_edit = {}
+                            st.session_state.aso_edit_show = False
                             st.rerun()
-                    else:
-                        st.warning("No se encontró ningún asociado con ese CUIL.")
+                    if _form_asociado(aso_e, "form_edit_asociado"):
+                        st.session_state.aso_edit = {}
+                        st.session_state.aso_edit_show = False
+                        st.rerun()
 
             with tab_lista:
                 df_aso = consultas.obtener_reporte_asociados()
                 if not df_aso.empty:
                     st.dataframe(df_aso, use_container_width=True, hide_index=True)
-                    csv = df_aso.to_csv(index=False).encode("utf-8")
-                    st.download_button("📥 Descargar CSV", csv, "asociados.csv", "text/csv")
+                    st.download_button("📥 Descargar CSV", df_aso.to_csv(index=False).encode("utf-8"), "asociados.csv", "text/csv")
                 else:
                     st.info("No hay asociados cargados todavía.")
 
-        # ============================================================
-        # SECCIÓN: PRÉSTAMOS
-        # ============================================================
+            with tab_import:
+                st.markdown("### 📥 Importar Maestro de Asociados")
+                st.info("Soporta el archivo XLS exportado desde **Onvio** (Legajos) o cualquier Excel/CSV con columnas CUIL y Apellido y Nombre.")
+                archivo_m = st.file_uploader("Seleccioná el archivo", type=["xlsx", "xls", "csv"], key="up_maestro")
+                sobreescribir = st.checkbox("Sobreescribir datos existentes", value=False, help="Si está tildado, actualiza asociados que ya existen. Si no, solo agrega los nuevos.")
+                if archivo_m:
+                    if st.button("📤 Importar ahora", type="primary"):
+                        import io as _io
+                        try:
+                            with st.spinner("Importando..."):
+                                ext = archivo_m.name.split(".")[-1].lower()
+                                contenido = archivo_m.getvalue()
+                                if ext == "csv":
+                                    df_m = pd.read_csv(_io.BytesIO(contenido), encoding="latin-1")
+                                    ok_count, errores = consultas.importar_asociados_desde_df(df_m, sobreescribir)
+                                elif ext == "xls":
+                                    ok_count, errores = consultas.importar_asociados_desde_df(contenido, sobreescribir)
+                                else:
+                                    df_m = pd.read_excel(_io.BytesIO(contenido))
+                                    ok_count, errores = consultas.importar_asociados_desde_df(df_m, sobreescribir)
+                            st.success(f"✅ {ok_count} asociados importados correctamente.")
+                            if errores:
+                                st.warning(f"⚠️ {len(errores)} filas con error:")
+                                for e in errores[:5]:
+                                    st.write(f"  - {e}")
+                        except Exception as e:
+                            st.error(f"Error al procesar el archivo: {e}")
+                else:
+                    st.caption("Seleccioná un archivo para habilitar el botón de importación.")
+
+        # ---- PRESTAMOS ----
         elif seccion == "💰 Préstamos":
             st.markdown("# 💰 Gestión de Préstamos")
             tab_nuevo, tab_editar, tab_reporte = st.tabs(["➕ Otorgar Préstamo", "✏️ Editar Cuotas", "📋 Reporte"])
@@ -498,12 +608,10 @@ elif st.session_state.portal == "admin":
             with tab_nuevo:
                 listado = consultas.listar_asociados_activos()
                 if not listado:
-                    st.warning("No hay asociados cargados. Cargalos primero en la sección Asociados.")
+                    st.warning("No hay asociados cargados.")
                 else:
                     opts = {f"{a['nombre_completo']} — {a['cuil']}": a["cuil"] for a in listado}
-                    sel = st.selectbox("Asociado:", list(opts.keys()))
-                    cuil_sel = opts[sel]
-
+                    cuil_sel = opts[st.selectbox("Asociado:", list(opts.keys()))]
                     st.markdown('<div class="card">', unsafe_allow_html=True)
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -512,23 +620,18 @@ elif st.session_state.portal == "admin":
                         cant_cuotas = st.number_input("Cantidad de Cuotas", min_value=1, max_value=60, value=6, step=1)
                     with col3:
                         f_otorg = st.date_input("Fecha de Otorgamiento", value=datetime.date.today())
-
                     if monto > 0 and cant_cuotas > 0:
-                        monto_cuota = round(monto / cant_cuotas, 2)
-                        st.info(f"💡 Monto por cuota: **$ {fmt_moneda(monto_cuota)}**")
-
-                        st.markdown("**Fechas de vencimiento** (podés modificarlas):")
+                        st.info(f"💡 Monto por cuota: **$ {fmt_moneda(round(monto / cant_cuotas, 2))}**")
+                        st.markdown("**Fechas de vencimiento:**")
                         fechas = []
                         cols = st.columns(min(int(cant_cuotas), 4))
                         for i in range(int(cant_cuotas)):
                             mes_offset = f_otorg.month + i
                             anio = f_otorg.year + (mes_offset - 1) // 12
                             mes = ((mes_offset - 1) % 12) + 1
-                            dia = min(f_otorg.day, 28)
                             with cols[i % min(int(cant_cuotas), 4)]:
-                                f = st.date_input(f"Cuota {i+1}", value=datetime.date(anio, mes, dia), key=f"vto_{i}")
+                                f = st.date_input(f"Cuota {i+1}", value=datetime.date(anio, mes, min(f_otorg.day, 28)), key=f"vto_{i}")
                             fechas.append(str(f))
-
                         if st.button("✅ Confirmar Préstamo", type="primary"):
                             consultas.registrar_prestamo(cuil_sel, monto, int(cant_cuotas), str(f_otorg), fechas)
                             st.success("Préstamo registrado correctamente.")
@@ -538,123 +641,92 @@ elif st.session_state.portal == "admin":
                 listado2 = consultas.listar_asociados_activos()
                 if listado2:
                     opts2 = {f"{a['nombre_completo']} — {a['cuil']}": a["cuil"] for a in listado2}
-                    sel2 = st.selectbox("Seleccioná un asociado:", list(opts2.keys()), key="sel_edit_pre")
-                    cuil_sel2 = opts2[sel2]
-                    prestamos = consultas.obtener_prestamos_asociado(cuil_sel2)
-
+                    prestamos = consultas.obtener_prestamos_asociado(opts2[st.selectbox("Asociado:", list(opts2.keys()), key="sel_edit_pre")])
                     if not prestamos:
-                        st.info("Este asociado no tiene préstamos registrados.")
+                        st.info("Este asociado no tiene préstamos.")
                     else:
                         for p in prestamos:
-                            st.markdown('<div class="card">', unsafe_allow_html=True)
-                            st.markdown(f"**Préstamo #{p['id']}** — Otorgado: {p['fecha_otorgamiento']} | Total: $ {fmt_moneda(p['monto_total'])}")
+                            st.markdown(f'<div class="card"><b>Préstamo #{p["id"]}</b> — {p["fecha_otorgamiento"]} | $ {fmt_moneda(p["monto_total"])}</div>', unsafe_allow_html=True)
                             for c in p.get("prestamos_cuotas", []):
                                 col_n, col_f, col_e, col_b = st.columns([1, 2, 2, 1])
-                                with col_n:
-                                    st.write(f"Cuota {c['numero_cuota']}")
+                                with col_n: st.write(f"Cuota {c['numero_cuota']}")
                                 with col_f:
-                                    try:
-                                        vto = datetime.date.fromisoformat(c["fecha_vencimiento"])
-                                    except:
-                                        vto = datetime.date.today()
+                                    try: vto = datetime.date.fromisoformat(c["fecha_vencimiento"])
+                                    except: vto = datetime.date.today()
                                     nueva_f = st.date_input("Vto.", value=vto, key=f"f_{c['id']}", label_visibility="collapsed")
                                 with col_e:
                                     estados = ["Pendiente", "Descontada", "Pausada"]
-                                    nuevo_e = st.selectbox("Estado", estados,
-                                        index=estados.index(c["estado"]) if c["estado"] in estados else 0,
-                                        key=f"e_{c['id']}", label_visibility="collapsed")
+                                    nuevo_e = st.selectbox("Estado", estados, index=estados.index(c["estado"]) if c["estado"] in estados else 0, key=f"e_{c['id']}", label_visibility="collapsed")
                                 with col_b:
                                     if st.button("💾", key=f"b_{c['id']}"):
                                         consultas.actualizar_cuota(c["id"], str(nueva_f), nuevo_e)
                                         st.success(f"Cuota {c['numero_cuota']} actualizada.")
                                         st.rerun()
-                            st.markdown('</div>', unsafe_allow_html=True)
 
             with tab_reporte:
                 df_p = consultas.obtener_reporte_prestamos()
                 if not df_p.empty:
                     st.dataframe(df_p, use_container_width=True, hide_index=True)
-                    csv = df_p.to_csv(index=False).encode("utf-8")
-                    st.download_button("📥 Descargar CSV", csv, "prestamos.csv", "text/csv")
+                    st.download_button("📥 CSV", df_p.to_csv(index=False).encode("utf-8"), "prestamos.csv", "text/csv")
                 else:
                     st.info("No hay préstamos registrados.")
 
-        # ============================================================
-        # SECCIÓN: SANCIONES
-        # ============================================================
+        # ---- SANCIONES ----
         elif seccion == "⚠️ Sanciones":
             st.markdown("# ⚠️ Gestión de Sanciones")
             tab_nueva, tab_rep = st.tabs(["➕ Registrar Sanción", "📋 Reporte"])
-
             with tab_nueva:
                 listado = consultas.listar_asociados_activos()
                 if not listado:
                     st.warning("No hay asociados cargados.")
                 else:
                     opts = {f"{a['nombre_completo']} — {a['cuil']}": a["cuil"] for a in listado}
-                    sel = st.selectbox("Asociado sancionado:", list(opts.keys()))
-                    cuil_san = opts[sel]
-
+                    cuil_san = opts[st.selectbox("Asociado sancionado:", list(opts.keys()))]
                     st.markdown('<div class="card">', unsafe_allow_html=True)
                     tipo = st.selectbox("Tipo de medida:", ["Apercibimiento", "Suspensión"])
                     col1, col2 = st.columns(2)
-                    with col1:
-                        f_desde = st.date_input("Fecha Desde", value=datetime.date.today())
-                    with col2:
-                        f_hasta = st.date_input("Fecha Hasta", value=datetime.date.today())
-                    motivo = st.text_area("Motivo (resumido):", max_chars=300, height=100)
-
+                    with col1: f_desde = st.date_input("Fecha Desde", value=datetime.date.today())
+                    with col2: f_hasta = st.date_input("Fecha Hasta", value=datetime.date.today())
+                    motivo = st.text_area("Motivo:", max_chars=300, height=100)
                     if st.button("📝 Registrar Sanción", type="primary"):
-                        if not motivo:
-                            st.warning("Ingresá el motivo.")
+                        if not motivo: st.warning("Ingresá el motivo.")
                         else:
                             consultas.registrar_sancion(cuil_san, tipo, str(f_desde), str(f_hasta), motivo)
                             st.success("Sanción registrada correctamente.")
                     st.markdown('</div>', unsafe_allow_html=True)
-
             with tab_rep:
                 df_s = consultas.obtener_reporte_sanciones()
                 if not df_s.empty:
                     st.dataframe(df_s, use_container_width=True, hide_index=True)
-                    csv = df_s.to_csv(index=False).encode("utf-8")
-                    st.download_button("📥 Descargar CSV", csv, "sanciones.csv", "text/csv")
+                    st.download_button("📥 CSV", df_s.to_csv(index=False).encode("utf-8"), "sanciones.csv", "text/csv")
                 else:
                     st.info("No hay sanciones registradas.")
 
-        # ============================================================
-        # SECCIÓN: INASISTENCIAS MÉDICAS
-        # ============================================================
+        # ---- INASISTENCIAS ----
         elif seccion == "🏥 Inasistencias":
             st.markdown("# 🏥 Inasistencias Médicas")
             tab_nueva, tab_hist = st.tabs(["➕ Registrar Ausencia", "📋 Historial"])
-
             with tab_nueva:
                 listado = consultas.listar_asociados_activos()
                 if not listado:
                     st.warning("No hay asociados cargados.")
                 else:
                     opts = {f"{a['nombre_completo']} — {a['cuil']}": a["cuil"] for a in listado}
-                    sel = st.selectbox("Asociado:", list(opts.keys()))
-                    cuil_med = opts[sel]
-
+                    cuil_med = opts[st.selectbox("Asociado:", list(opts.keys()))]
                     st.markdown('<div class="card">', unsafe_allow_html=True)
                     fecha_m = st.date_input("Fecha de ausencia", value=datetime.date.today())
-                    motivo_m = st.text_area("Motivo / Diagnóstico (resumido):", max_chars=300, height=100)
-
+                    motivo_m = st.text_area("Motivo / Diagnóstico:", max_chars=300, height=100)
                     if st.button("💾 Registrar Ausencia", type="primary"):
-                        if not motivo_m:
-                            st.warning("Ingresá el motivo.")
+                        if not motivo_m: st.warning("Ingresá el motivo.")
                         else:
                             consultas.registrar_ausencia_medica(cuil_med, str(fecha_m), motivo_m)
                             st.success("Ausencia médica registrada.")
                     st.markdown('</div>', unsafe_allow_html=True)
-
             with tab_hist:
                 listado2 = consultas.listar_asociados_activos()
                 if listado2:
                     opts2 = {f"{a['nombre_completo']} — {a['cuil']}": a["cuil"] for a in listado2}
-                    sel2 = st.selectbox("Ver historial de:", list(opts2.keys()), key="sel_hist")
-                    hist = consultas.obtener_historial_medico(opts2[sel2])
+                    hist = consultas.obtener_historial_medico(opts2[st.selectbox("Ver historial de:", list(opts2.keys()), key="sel_hist")])
                     if hist:
                         df_h = pd.DataFrame(hist)[["fecha", "motivo"]]
                         df_h.columns = ["Fecha", "Motivo"]
@@ -662,37 +734,21 @@ elif st.session_state.portal == "admin":
                     else:
                         st.info("No hay ausencias registradas para este asociado.")
 
-        # ============================================================
-        # SECCIÓN: REPORTES
-        # ============================================================
+        # ---- REPORTES ----
         elif seccion == "📊 Reportes":
             st.markdown("# 📊 Reportes")
-            op = st.selectbox("Seleccioná el reporte:", [
-                "Padrón de Asociados", "Préstamos y Cuotas", "Sanciones", "Historial Médico"
-            ])
-            if op == "Padrón de Asociados":
-                df_rep = consultas.obtener_reporte_asociados()
-            elif op == "Préstamos y Cuotas":
-                df_rep = consultas.obtener_reporte_prestamos()
-            elif op == "Sanciones":
-                df_rep = consultas.obtener_reporte_sanciones()
-            else:
-                df_rep = consultas.obtener_reporte_historial_medico()
-
+            op = st.selectbox("Seleccioná el reporte:", ["Padrón de Asociados", "Préstamos y Cuotas", "Sanciones", "Historial Médico"])
+            df_rep = {"Padrón de Asociados": consultas.obtener_reporte_asociados, "Préstamos y Cuotas": consultas.obtener_reporte_prestamos, "Sanciones": consultas.obtener_reporte_sanciones, "Historial Médico": consultas.obtener_reporte_historial_medico}[op]()
             if not df_rep.empty:
                 st.dataframe(df_rep, use_container_width=True, hide_index=True)
-                csv = df_rep.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Descargar CSV", data=csv, file_name=f"{op}.csv", mime="text/csv")
+                st.download_button("📥 Descargar CSV", df_rep.to_csv(index=False).encode("utf-8"), f"{op}.csv", "text/csv")
             else:
-                st.info("No hay datos en este reporte todavía.")
+                st.info("No hay datos todavía.")
 
-        # ============================================================
-        # SECCIÓN: USUARIOS (solo admin)
-        # ============================================================
+        # ---- USUARIOS ----
         elif seccion == "👥 Usuarios" and rol == "admin":
             st.markdown("# 👥 Gestión de Usuarios")
             tab_nuevo, tab_lista, tab_blanqueo = st.tabs(["➕ Crear Usuario", "📋 Usuarios Activos", "🔑 Blanquear Clave"])
-
             with tab_nuevo:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
                 with st.form("form_nuevo_user"):
@@ -702,21 +758,13 @@ elif st.session_state.portal == "admin":
                     if st.form_submit_button("Crear Usuario", use_container_width=True, type="primary"):
                         if nu_user and nu_pass:
                             ok = consultas.crear_usuario_sistema(nu_user, nu_pass, nu_rol)
-                            if ok:
-                                st.success(f"Usuario '{nu_user}' creado con rol '{nu_rol}'.")
-                            else:
-                                st.error("Ya existe un usuario con ese nombre.")
+                            st.success(f"Usuario '{nu_user}' creado.") if ok else st.error("Ya existe un usuario con ese nombre.")
                         else:
                             st.warning("Completá todos los campos.")
                 st.markdown('</div>', unsafe_allow_html=True)
-
             with tab_lista:
                 df_u = consultas.listar_usuarios_sistema()
-                if not df_u.empty:
-                    st.dataframe(df_u, use_container_width=True, hide_index=True)
-                else:
-                    st.info("No hay usuarios cargados.")
-
+                st.dataframe(df_u, use_container_width=True, hide_index=True) if not df_u.empty else st.info("No hay usuarios.")
             with tab_blanqueo:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
                 with st.form("form_blanqueo"):
@@ -725,148 +773,114 @@ elif st.session_state.portal == "admin":
                     if st.form_submit_button("🔑 Blanquear Clave", use_container_width=True):
                         if usr_reset and nueva_clave:
                             ok = consultas.blanquear_clave(usr_reset, nueva_clave)
-                            if ok:
-                                st.success(f"Clave de '{usr_reset}' actualizada.")
-                            else:
-                                st.error("No se encontró ese usuario.")
+                            st.success(f"Clave de '{usr_reset}' actualizada.") if ok else st.error("No se encontró ese usuario.")
                         else:
                             st.warning("Completá todos los campos.")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # ============================================================
-        # SECCIÓN: CARGAR EXCEL (solo admin)
-        # ============================================================
+        # ---- CARGAR EXCEL LIQUIDACIONES ----
         elif seccion == "📁 Cargar Excel" and rol == "admin":
-            st.markdown("# 📁 Carga de Archivos Excel")
-
-            tab_liq, tab_maestro = st.tabs(["📊 Liquidaciones", "👤 Importar Maestro de Asociados"])
-
-            with tab_liq:
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown("### Subir Excel de Liquidaciones")
-                st.info("Cada Excel que subas se **acumula** como historial. Nunca se pisa la información anterior.")
-
-                archivo = st.file_uploader("Seleccioná el archivo Excel", type=["xlsx", "xls"], key="up_liq")
-                periodo_txt = st.text_input("Nombre del período", placeholder="QUINCENA 1 - JUNIO 2025")
-                st.caption("Este nombre es el que verá el asociado en el selector de períodos.")
-
-                if archivo and periodo_txt:
-                    if st.button("📤 Cargar Liquidación", type="primary"):
-                        try:
-                            df_liq = pd.read_excel(archivo)
+            st.markdown("# 📁 Cargar Liquidaciones")
+            st.info("💡 Cada Excel que subás se **acumula** como historial. Nunca se pisa información anterior.")
+            archivo = st.file_uploader("Seleccioná el Excel de liquidaciones (exportado de Onvio)", type=["xlsx", "xls"], key="up_liq")
+            if archivo:
+                try:
+                    df_liq = pd.read_excel(archivo)
+                    # Detectar período automáticamente desde columna "Liquidación"
+                    periodo_auto = ""
+                    if "Liquidación" in df_liq.columns:
+                        vals = df_liq["Liquidación"].dropna()
+                        if not vals.empty:
+                            periodo_auto = str(vals.iloc[0]).strip()
+                    periodo_txt = st.text_input("Nombre del período", value=periodo_auto,
+                        help="Se detectó automáticamente desde el archivo. Podés editarlo si querés.")
+                    col_a, col_b = st.columns(2)
+                    empleados = df_liq["Apellido y Nombre"].nunique() if "Apellido y Nombre" in df_liq.columns else "?"
+                    col_a.metric("Empleados en el archivo", empleados)
+                    col_b.metric("Registros (conceptos)", len(df_liq))
+                    if periodo_txt:
+                        if periodo_txt in consultas.listar_periodos_disponibles():
+                            st.warning(f"⚠️ El período **{periodo_txt}** ya fue cargado. Si cargás de nuevo se duplicarán los registros.")
+                        if st.button("📤 Cargar Liquidación", type="primary"):
                             cant = consultas.cargar_liquidacion_desde_df(df_liq, periodo_txt)
-                            st.success(f"✅ Se cargaron {cant} registros para el período **{periodo_txt}**.")
-                        except Exception as e:
-                            st.error(f"Error al procesar el archivo: {e}")
-                elif archivo and not periodo_txt:
-                    st.warning("Ingresá el nombre del período antes de cargar.")
+                            st.success(f"✅ Se cargaron {cant} registros para **{periodo_txt}**.")
+                    else:
+                        st.warning("Ingresá el nombre del período antes de cargar.")
+                except Exception as e:
+                    st.error(f"Error al leer el archivo: {e}")
+            periodos = consultas.listar_periodos_disponibles()
+            if periodos:
+                st.markdown("---")
+                st.markdown("**Períodos ya cargados:**")
+                for p in periodos:
+                    st.write(f"• {p}")
 
-                # Muestra los períodos ya cargados
-                periodos = consultas.listar_periodos_disponibles()
-                if periodos:
-                    st.markdown("---")
-                    st.markdown("**Períodos ya cargados en el sistema:**")
-                    for p in periodos:
-                        st.write(f"• {p}")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            with tab_maestro:
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown("### Importar Asociados desde Excel")
-                st.info("""
-                El Excel debe tener estas columnas (los nombres pueden variar):
-                `cuil`, `nombre_completo`, `dni`, `domicilio`, `localidad`, `provincia`, `telefono`, `sector`, `categoria`, `fecha_ingreso`, `nro_asociado`
-                """)
-                archivo_m = st.file_uploader("Seleccioná el archivo Excel", type=["xlsx", "xls", "csv"], key="up_maestro")
-                sobreescribir = st.checkbox("Sobreescribir datos existentes", value=False)
-                st.caption("Si está tildado, pisa los datos de asociados que ya existen. Si no está tildado, solo agrega los nuevos.")
-
-                if archivo_m and st.button("📤 Importar Maestro", type="primary"):
-                    try:
-                        ext = archivo_m.name.split(".")[-1].lower()
-                        df_m = pd.read_csv(archivo_m, encoding="latin-1") if ext == "csv" else pd.read_excel(archivo_m)
-                        ok_count, errores = consultas.importar_asociados_desde_df(df_m, sobreescribir)
-                        st.success(f"✅ {ok_count} asociados importados correctamente.")
-                        if errores:
-                            st.warning(f"⚠️ {len(errores)} filas con error: {errores[:3]}")
-                    except Exception as e:
-                        st.error(f"Error al procesar el archivo: {e}")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        # ============================================================
-        # SECCIÓN: EMITIR RECIBOS (solo admin)
-        # ============================================================
+        # ---- EMITIR RECIBOS ----
         elif seccion == "🖨️ Emitir Recibos" and rol == "admin":
             st.markdown("# 🖨️ Emisión de Recibos en PDF")
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.info("Subí el Excel del mes completo (todas las quincenas). Solo se usa para generar los PDFs, no se guarda como historial.")
-
-            archivo_r = st.file_uploader("Seleccioná el Excel para recibos", type=["xlsx", "xls"], key="up_recibos")
-            col1, col2 = st.columns(2)
-            with col1:
-                periodo_r = st.text_input("Período", placeholder="JUNIO 2025")
-            with col2:
-                fecha_em = st.date_input("Fecha de emisión", value=datetime.date.today())
-
-            if archivo_r and periodo_r:
-                if st.button("🖨️ Generar Recibos PDF", type="primary"):
-                    try:
-                        import recibos as mod_recibos
-                        df_r = pd.read_excel(archivo_r)
-                        mapa_nro = consultas.obtener_mapa_nro_asociado()
-                        archivos_pdf = mod_recibos.generar_pdf(df_r, {}, periodo_r, str(fecha_em), db_map=mapa_nro)
-                        st.success(f"✅ Se generaron {len(archivos_pdf)} archivos PDF.")
-                        for fpath in archivos_pdf:
-                            import os
-                            nombre_arch = os.path.basename(fpath)
-                            with open(fpath, "rb") as f_pdf:
+            periodos_disponibles = consultas.listar_periodos_disponibles()
+            if not periodos_disponibles:
+                st.warning("No hay liquidaciones cargadas todavía. Primero cargá al menos un Excel en 'Cargar Excel'.")
+            else:
+                st.info("Seleccioná una o más liquidaciones cargadas. Los conceptos se agruparán por empleado en un solo recibo.")
+                periodos_sel = st.multiselect(
+                    "📋 Liquidaciones a incluir en el recibo:",
+                    options=periodos_disponibles,
+                    help="Podés seleccionar 1ª y 2ª quincena juntas para el recibo mensual, por ejemplo."
+                )
+                col1, col2 = st.columns(2)
+                with col1: titulo_recibo = st.text_input("Título del recibo", placeholder="JUNIO 2026", help="Nombre que aparecerá en el encabezado del PDF")
+                with col2: fecha_em = st.date_input("Fecha de emisión", value=datetime.date.today())
+                if periodos_sel and titulo_recibo:
+                    if st.button("🖨️ Generar Recibos PDF", type="primary"):
+                        try:
+                            import recibos as mod_recibos
+                            df_r = consultas.obtener_liquidacion_para_recibos(periodos_sel)
+                            if df_r.empty:
+                                st.error("No se encontraron datos para los períodos seleccionados.")
+                            else:
+                                with st.spinner("Generando recibos..."):
+                                    zip_bytes = mod_recibos.generar_zip(
+                                        df_r, titulo_recibo, str(fecha_em),
+                                        db_map=consultas.obtener_mapa_nro_asociado()
+                                    )
+                                nombre_zip = f"Recibos_{titulo_recibo.replace(' ','_')}.zip"
+                                st.success(f"✅ Recibos generados correctamente.")
                                 st.download_button(
-                                    label=f"📄 Descargar {nombre_arch}",
-                                    data=f_pdf.read(),
-                                    file_name=nombre_arch,
-                                    mime="application/pdf",
-                                    key=f"dl_{nombre_arch}"
+                                    f"📦 Descargar {nombre_zip}",
+                                    zip_bytes, nombre_zip, "application/zip",
+                                    type="primary"
                                 )
-                    except Exception as e:
-                        st.error(f"Error al generar recibos: {e}")
-            st.markdown('</div>', unsafe_allow_html=True)
+                        except Exception as e:
+                            st.error(f"Error al generar recibos: {e}")
+                elif periodos_sel and not titulo_recibo:
+                    st.warning("Ingresá el título del recibo.")
 
-        # ============================================================
-        # SECCIÓN: CONFIGURACIÓN (solo admin)
-        # ============================================================
+        # ---- CONFIGURACION ----
         elif seccion == "🔧 Configuración" and rol == "admin":
             st.markdown("# 🔧 Configuración")
             st.markdown("### Gestión de Sectores")
             st.info("Los sectores que cargues acá van a aparecer como opciones al crear o modificar un asociado.")
-
             col1, col2 = st.columns([2, 1])
-
             with col2:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown("**Agregar nuevo sector:**")
                 with st.form("form_sector"):
                     nuevo_sec = st.text_input("Nombre del sector")
                     if st.form_submit_button("➕ Agregar", use_container_width=True):
                         if nuevo_sec:
                             ok = consultas.agregar_sector(nuevo_sec)
-                            if ok:
-                                st.success(f"Sector '{nuevo_sec}' agregado.")
-                                st.rerun()
-                            else:
-                                st.error("Ya existe ese sector.")
+                            st.success(f"Sector '{nuevo_sec}' agregado.") if ok else st.error("Ya existe ese sector.")
+                            if ok: st.rerun()
                         else:
                             st.warning("Ingresá un nombre.")
                 st.markdown('</div>', unsafe_allow_html=True)
-
             with col1:
                 sectores = consultas.listar_sectores()
                 if sectores:
                     st.markdown('<div class="card">', unsafe_allow_html=True)
-                    st.markdown("**Sectores actuales:**")
                     for s in sectores:
                         col_n, col_b = st.columns([4, 1])
-                        with col_n:
-                            st.write(f"• {s['nombre']}")
+                        with col_n: st.write(f"• {s['nombre']}")
                         with col_b:
                             if st.button("🗑️", key=f"del_{s['id']}"):
                                 consultas.eliminar_sector(s["id"])

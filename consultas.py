@@ -143,7 +143,7 @@ def buscar_asociado_por_cuil(cuil):
 
 def listar_asociados_activos():
     res = supabase.table("maestro_asociados")\
-        .select("cuil, nro_asociado, nombre_completo, sector")\
+        .select("cuil, nro_asociado, nombre_completo, sector, categoria")\
         .eq("activo", True)\
         .order("nombre_completo")\
         .execute()
@@ -157,71 +157,123 @@ def dar_baja_asociado(cuil):
         .execute()
 
 
-def importar_asociados_desde_df(df, sobreescribir=False):
+def _parsear_xls_onvio(contenido_bytes):
+    """Parsea el formato XML de Onvio (.xls) y retorna un DataFrame."""
+    from lxml import etree
+    contenido = contenido_bytes.replace(b"version='1.0'encoding=", b"version='1.0' encoding=")
+    ns = {'ss': 'urn:schemas-microsoft-com:office:spreadsheet'}
+    tree = etree.fromstring(contenido)
+    rows = tree.findall('.//ss:Row', ns)
+    if not rows:
+        return pd.DataFrame()
+    headers = [c.findtext('ss:Data', namespaces=ns) for c in rows[0].findall('ss:Cell', ns)]
+    data = []
+    for row in rows[1:]:
+        cells = row.findall('ss:Cell', ns)
+        vals = [c.findtext('ss:Data', namespaces=ns) for c in cells]
+        # Rellenar celdas faltantes
+        while len(vals) < len(headers):
+            vals.append(None)
+        data.append(dict(zip(headers, vals)))
+    return pd.DataFrame(data)
+
+
+def importar_asociados_desde_df(df_o_bytes, sobreescribir=False):
     """
-    Carga masiva desde un DataFrame (Excel subido por el admin).
+    Carga masiva desde un DataFrame o bytes de archivo XLS de Onvio.
     Retorna (cantidad_ok, lista_errores).
     """
-    df.columns = df.columns.str.strip()
+    if isinstance(df_o_bytes, bytes):
+        df = _parsear_xls_onvio(df_o_bytes)
+    else:
+        df = df_o_bytes.copy()
+
+    # Deduplicar columnas: procesar en reversa para que la ÚLTIMA ocurrencia
+    # de cada nombre quede limpia (sin sufijo). Así "Sector" (col 58) prevalece
+    # sobre "Sector " (col 23) del XLS de Onvio.
+    n = len(df.columns)
+    seen = {}
+    new_cols_rev = []
+    for i in range(n - 1, -1, -1):
+        c_strip = str(df.columns[i]).strip()
+        if c_strip in seen:
+            new_cols_rev.append(f"{c_strip}_dup{seen[c_strip]}")
+            seen[c_strip] += 1
+        else:
+            new_cols_rev.append(c_strip)
+            seen[c_strip] = 1
+    df.columns = list(reversed(new_cols_rev))
+
     ok = 0
     errores = []
 
-    # Mapa flexible de nombres de columna
     alias = {
-        "cuil":            ["cuil", "CUIL"],
-        "nro_asociado":    ["nro_asociado", "Nro", "NRO"],
-        "nombre_completo": ["nombre_completo", "Nombre", "Apellido y Nombre"],
-        "dni":             ["dni", "DNI"],
-        "domicilio":       ["domicilio", "Domicilio"],
-        "localidad":       ["localidad", "Localidad"],
-        "provincia":       ["provincia", "Provincia"],
-        "telefono":        ["telefono", "Teléfono", "Telefono"],
-        "sector":          ["sector", "Sector"],
-        "categoria":       ["categoria", "Categoría", "Categoria"],
-        "fecha_ingreso":   ["fecha_ingreso", "Fecha Ingreso"],
+        "cuil":            ["CUIL", "cuil"],
+        "nro_asociado":    ["Número", "Nro", "nro_asociado", "NRO"],
+        "nombre_completo": ["Apellido y Nombre", "Nombre", "nombre_completo"],
+        "dni":             ["Nro. de Documento", "DNI", "dni", "Documento"],
+        "domicilio":       ["Calle", "Domicilio", "domicilio"],
+        "localidad":       ["Localidad", "localidad"],
+        "provincia":       ["Provincia", "provincia"],
+        "telefono":        ["Teléfono móvil", "Teléfono fijo", "Teléfono", "Telefono", "telefono"],
+        "sector":          ["Sector", "sector"],
+        "categoria":       ["Categoría", "Categoria", "categoria"],
+        "fecha_ingreso":   ["Fecha de alta", "Fecha Ingreso", "fecha_ingreso"],
+        "cod_area":        ["Código de área", "Cod. Area"],
     }
 
     def get(row, campo):
-        for a in alias[campo]:
+        for a in alias.get(campo, []):
             if a in row.index:
                 v = row[a]
-                return "" if pd.isna(v) else str(v).strip()
+                if isinstance(v, pd.Series):
+                    v = v.iloc[0]
+                if not pd.isna(v):
+                    return str(v).strip()
         return ""
 
     for idx, row in df.iterrows():
         try:
-            cuil = get(row, "cuil")
+            cuil = get(row, "cuil").replace("-", "").replace(" ", "")
             nombre = get(row, "nombre_completo")
-            if not cuil or not nombre:
-                errores.append(f"Fila {idx+2}: falta CUIL o nombre")
+            if not cuil or not nombre or cuil == "nan":
                 continue
+
+            # Teléfono: combinar área + fijo si no hay móvil
+            tel = get(row, "telefono")
+            if not tel:
+                area = get(row, "cod_area")
+                fijo = ""
+                for col in ["Teléfono fijo", "telefono"]:
+                    if col in row.index and not pd.isna(row.get(col)):
+                        fijo = str(row[col]).strip()
+                        break
+                tel = f"0{area}{fijo}" if area and fijo else fijo
 
             datos = {
                 "cuil": cuil,
-                "nro_asociado": get(row, "nro_asociado"),
+                "nro_asociado": get(row, "nro_asociado") or None,
                 "nombre_completo": nombre,
-                "dni": get(row, "dni"),
-                "domicilio": get(row, "domicilio"),
-                "localidad": get(row, "localidad"),
-                "provincia": get(row, "provincia"),
-                "telefono": get(row, "telefono"),
-                "sector": get(row, "sector"),
-                "categoria": get(row, "categoria"),
+                "dni": get(row, "dni") or None,
+                "domicilio": get(row, "domicilio") or None,
+                "localidad": get(row, "localidad") or None,
+                "provincia": get(row, "provincia") or None,
+                "telefono": tel or None,
+                "sector": get(row, "sector") or None,
+                "categoria": get(row, "categoria") or None,
                 "fecha_ingreso": get(row, "fecha_ingreso") or None,
                 "activo": True
             }
 
             if sobreescribir:
-                supabase.table("maestro_asociados").upsert(datos).execute()
+                supabase.table("maestro_asociados").upsert(datos, on_conflict="cuil").execute()
             else:
-                # Solo inserta si no existe
-                existe = supabase.table("maestro_asociados")\
-                    .select("cuil").eq("cuil", cuil).execute()
+                existe = supabase.table("maestro_asociados").select("cuil").eq("cuil", cuil).execute()
                 if not existe.data:
                     supabase.table("maestro_asociados").insert(datos).execute()
             ok += 1
         except Exception as e:
-            errores.append(f"Fila {idx+2}: {e}")
+            errores.append(f"Fila {idx+2} ({nombre}): {e}")
 
     return ok, errores
 
@@ -233,6 +285,13 @@ def obtener_reporte_asociados():
         .order("nombre_completo")\
         .execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+
+
+def listar_categorias():
+    """Retorna la lista de categorías únicas ya cargadas en el maestro."""
+    res = supabase.table("maestro_asociados").select("categoria").eq("activo", True).execute()
+    cats = sorted(set(r["categoria"] for r in (res.data or []) if r.get("categoria")))
+    return cats
 
 
 def obtener_mapa_nro_asociado():
@@ -254,24 +313,33 @@ def cargar_liquidacion_desde_df(df, periodo):
     df.columns = df.columns.str.strip()
     filas = []
 
+    def _float(val):
+        try:
+            return float(str(val).replace(",", ".") or 0)
+        except:
+            return 0.0
+
     for _, row in df.iterrows():
         try:
             cuil = str(row.get("CUIL", "")).strip()
-            if not cuil:
+            if not cuil or cuil == "nan":
                 continue
             filas.append({
                 "cuil": cuil,
                 "periodo": periodo,
+                "nro_legajo": str(row.get("Nro. de Legajo", row.get("Nro. Legajo", ""))).strip() or None,
+                "nombre_completo": str(row.get("Apellido y Nombre", "")).strip() or None,
                 "descripcion": str(row.get("Descripción Concepto", "")).strip(),
                 "tipo_concepto": str(row.get("Tipo de Concepto", "")).strip(),
-                "cantidad": float(str(row.get("Cantidad", 0)).replace(",", ".") or 0),
-                "importe": float(str(row.get("Importe Calc", 0)).replace(",", ".") or 0),
+                "cantidad": _float(row.get("Cantidad", 0)),
+                "importe": _float(row.get("Importe Calc", row.get("Importe", 0))),
                 "sector": str(row.get("Sector", "")).strip(),
                 "categoria": str(row.get("Categoría", "")).strip(),
-                "neto": float(str(row.get("NETO", 0)).replace(",", ".") or 0),
-                "haberes_rem": float(str(row.get("Haberes remunerativos", 0)).replace(",", ".") or 0),
-                "haberes_no_rem": float(str(row.get("Haberes No remunerativos", 0)).replace(",", ".") or 0),
-                "retenciones": float(str(row.get("Retenciones", 0)).replace(",", ".") or 0),
+                "jornal_basico": _float(row.get("Jornal / Básico", row.get("Jornal/Básico", 0))),
+                "neto": _float(row.get("NETO", row.get("Neto", 0))),
+                "haberes_rem": _float(row.get("Haberes remunerativos", 0)),
+                "haberes_no_rem": _float(row.get("Haberes No remunerativos", 0)),
+                "retenciones": _float(row.get("Retenciones", row.get("Total Retenciones", 0))),
             })
         except:
             continue
@@ -282,6 +350,51 @@ def cargar_liquidacion_desde_df(df, periodo):
             supabase.table("liquidaciones").insert(filas[i:i+500]).execute()
 
     return len(filas)
+
+
+def obtener_liquidacion_para_recibos(periodos: list):
+    """
+    Trae todos los registros de uno o más períodos y los devuelve con los
+    nombres de columna que espera recibos.py (mayúsculas/español).
+    """
+    res = supabase.table("liquidaciones")\
+        .select("*")\
+        .in_("periodo", periodos)\
+        .execute()
+    if not res.data:
+        return pd.DataFrame()
+    df = pd.DataFrame(res.data)
+
+    # Traer nombres de asociados para enriquecer el DataFrame
+    cuils = df["cuil"].unique().tolist()
+    aso_res = supabase.table("maestro_asociados")\
+        .select("cuil, nombre_completo, nro_asociado")\
+        .in_("cuil", cuils)\
+        .execute()
+    aso_map = {r["cuil"]: r for r in (aso_res.data or [])}
+
+    # Nombre desde la propia liquidación (guardado al cargar) o desde maestro
+    df["Apellido y Nombre"] = df.apply(
+        lambda r: r.get("nombre_completo") or aso_map.get(r["cuil"], {}).get("nombre_completo", ""), axis=1)
+    df["Nro. de Legajo"] = df.apply(
+        lambda r: r.get("nro_legajo") or aso_map.get(r["cuil"], {}).get("nro_asociado", "S/D"), axis=1)
+
+    df = df.rename(columns={
+        "cuil":           "CUIL",
+        "descripcion":    "Descripción Concepto",
+        "tipo_concepto":  "Tipo de Concepto",
+        "cantidad":       "Cantidad",
+        "importe":        "Importe Calc",
+        "sector":         "Sector",
+        "categoria":      "Categoría",
+        "jornal_basico":  "Jornal / Básico",
+        "neto":           "NETO",
+        "haberes_rem":    "Haberes remunerativos",
+        "haberes_no_rem": "Haberes No remunerativos",
+        "retenciones":    "Retenciones",
+        "periodo":        "Liquidación",
+    })
+    return df
 
 
 def obtener_periodos_asociado(cuil):
