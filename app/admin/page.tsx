@@ -106,6 +106,11 @@ export default function AdminPage() {
   // --- Sectores ---
   const [nuSector, setNuSector] = useState("");
 
+  // --- Reportes ---
+  const [repFechaDesde, setRepFechaDesde] = useState("");
+  const [repFechaHasta, setRepFechaHasta] = useState("");
+  const [repCuil, setRepCuil] = useState("");
+
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
       if (s?.rol === "admin" || s?.rol === "auxiliar") setSession(s);
@@ -129,10 +134,18 @@ export default function AdminPage() {
   useEffect(() => {
     const n = preCuotas;
     const dates: string[] = [];
+    let cur = new Date(preFecha);
     for (let i = 0; i < n; i++) {
-      const d = new Date(preFecha);
-      d.setMonth(d.getMonth() + i + 1);
-      dates.push(d.toISOString().slice(0, 10));
+      // avanzar al siguiente vencimiento quincenal (15 o último día del mes)
+      cur = new Date(cur);
+      cur.setDate(cur.getDate() + 1);
+      if (cur.getDate() <= 15) {
+        cur.setDate(15);
+      } else {
+        cur.setMonth(cur.getMonth() + 1);
+        cur.setDate(0); // último día del mes anterior
+      }
+      dates.push(cur.toISOString().slice(0, 10));
     }
     setPreFechasVto(dates);
   }, [preCuotas, preFecha]);
@@ -367,24 +380,36 @@ export default function AdminPage() {
             )}
 
             {asoTab === "import" && (
-              <Card>
-                <h3 className="font-bold text-[#1e293b] mb-2">📥 Importar Maestro de Asociados</h3>
-                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Soporta el archivo XLS exportado desde Onvio (Legajos) o cualquier Excel/CSV con columnas CUIL y Apellido y Nombre.</p>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
-                  <input type="file" accept=".xls,.xlsx,.csv" onChange={e => setImportFile(e.target.files?.[0] || null)} className="hidden" id="import-file" />
-                  <label htmlFor="import-file" className="cursor-pointer">
-                    <div className="text-3xl mb-2">📂</div>
-                    <div className="text-sm text-gray-500">{importFile ? importFile.name : "Seleccioná un archivo XLS, XLSX o CSV"}</div>
+              <div className="space-y-4">
+                <Card>
+                  <h3 className="font-bold text-[#1e293b] mb-2">📥 Importar Maestro de Asociados</h3>
+                  <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Soporta el archivo XLS exportado desde Onvio (Legajos) o cualquier Excel/CSV con columnas CUIL y Apellido y Nombre.</p>
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
+                    <input type="file" accept=".xls,.xlsx,.csv" onChange={e => setImportFile(e.target.files?.[0] || null)} className="hidden" id="import-file" />
+                    <label htmlFor="import-file" className="cursor-pointer">
+                      <div className="text-3xl mb-2">📂</div>
+                      <div className="text-sm text-gray-500">{importFile ? importFile.name : "Seleccioná un archivo XLS, XLSX o CSV"}</div>
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm mb-4 cursor-pointer">
+                    <input type="checkbox" checked={sobreescribir} onChange={e => setSobreescribir(e.target.checked)} />
+                    Sobreescribir datos existentes
                   </label>
-                </div>
-                <label className="flex items-center gap-2 text-sm mb-4 cursor-pointer">
-                  <input type="checkbox" checked={sobreescribir} onChange={e => setSobreescribir(e.target.checked)} />
-                  Sobreescribir datos existentes
-                </label>
-                <Btn onClick={importarMaestro} disabled={!importFile || importing} className="w-full justify-center">
-                  {importing ? "Importando..." : "📤 Importar ahora"}
-                </Btn>
-              </Card>
+                  <Btn onClick={importarMaestro} disabled={!importFile || importing} className="w-full justify-center">
+                    {importing ? "Importando..." : "📤 Importar ahora"}
+                  </Btn>
+                </Card>
+                <Card>
+                  <h3 className="font-bold text-[#1e293b] mb-2">🔢 Cargar Números de Asociado</h3>
+                  <p className="text-sm text-gray-500 mb-4">Carga los números de asociado (nro_asociado) precargados desde el archivo asociados.json para todos los CUIL registrados.</p>
+                  <Btn variant="secondary" onClick={async () => {
+                    const r = await fetch("/api/import-nros", { method: "POST" });
+                    const d = await r.json();
+                    setMsg({ text: `✅ ${d.ok}/${d.total} nros. de asociado actualizados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                    loadBase();
+                  }}>🔢 Cargar Nros. de Asociado</Btn>
+                </Card>
+              </div>
             )}
           </div>
         )}
@@ -607,23 +632,52 @@ export default function AdminPage() {
         {seccion === "reportes" && (
           <div>
             <h1 className="text-2xl font-bold text-[#1e293b] mb-4">📊 Reportes</h1>
+            <Card>
+              <h3 className="font-bold text-sm mb-3">Filtros</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div><Label>Fecha Desde</Label><Input type="date" value={repFechaDesde} onChange={e => setRepFechaDesde(e.target.value)} /></div>
+                <div><Label>Fecha Hasta</Label><Input type="date" value={repFechaHasta} onChange={e => setRepFechaHasta(e.target.value)} /></div>
+                <div><Label>Asociado (CUIL o Nombre)</Label>
+                  <Select value={repCuil} onChange={e => setRepCuil(e.target.value)}>
+                    <option value="">Todos</option>
+                    {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
+                  </Select>
+                </div>
+              </div>
+            </Card>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { label: "Padrón de Asociados", url: "/api/asociados?reporte=1", file: "asociados.csv" },
-                { label: "Sanciones", url: "/api/sanciones?reporte=1", file: "sanciones.csv" },
-                { label: "Historial Médico", url: "/api/medico?reporte=1", file: "historial.csv" },
+                { label: "Padrón de Asociados", url: "/api/asociados?reporte=1", file: "asociados", fechaField: null, cuilField: "cuil" },
+                { label: "Sanciones", url: "/api/sanciones?reporte=1", file: "sanciones", fechaField: "fecha_desde", cuilField: "cuil_asociado" },
+                { label: "Historial Médico", url: "/api/medico?reporte=1", file: "historial", fechaField: "fecha", cuilField: "cuil_asociado" },
+                { label: "Préstamos", url: "/api/prestamos?reporte=1", file: "prestamos", fechaField: "fecha_otorgamiento", cuilField: "cuil_asociado" },
               ].map(rep => (
                 <Card key={rep.label} className="flex items-center justify-between">
                   <span className="font-medium">{rep.label}</span>
-                  <Btn variant="secondary" onClick={async () => {
-                    const r = await fetch(rep.url);
-                    const d = await r.json();
-                    if (!d.length) return;
-                    const keys = Object.keys(d[0]);
-                    const csv = [keys.join(","), ...d.map((row: Record<string, unknown>) => keys.map(k => `"${String(row[k] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
-                    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                    const a = document.createElement("a"); a.href = url; a.download = rep.file; a.click();
-                  }}>📥 CSV</Btn>
+                  <div className="flex gap-2">
+                    {[{ ext: "csv", icon: "📥" }, { ext: "xlsx", icon: "📊" }].map(({ ext, icon }) => (
+                      <Btn key={ext} variant="secondary" onClick={async () => {
+                        const r = await fetch(rep.url);
+                        let d: Record<string, unknown>[] = await r.json();
+                        if (rep.fechaField && repFechaDesde) d = d.filter(row => String(row[rep.fechaField!] || "") >= repFechaDesde);
+                        if (rep.fechaField && repFechaHasta) d = d.filter(row => String(row[rep.fechaField!] || "") <= repFechaHasta);
+                        if (repCuil && rep.cuilField) d = d.filter(row => row[rep.cuilField!] === repCuil);
+                        if (!d.length) { setMsg({ text: "Sin datos con esos filtros.", ok: false }); return; }
+                        if (ext === "csv") {
+                          const keys = Object.keys(d[0]);
+                          const csv = [keys.join(","), ...d.map(row => keys.map(k => `"${String(row[k] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+                          const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                          const a = document.createElement("a"); a.href = url; a.download = `${rep.file}.csv`; a.click();
+                        } else {
+                          const XLSX = await import("xlsx");
+                          const ws = XLSX.utils.json_to_sheet(d);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, rep.label);
+                          XLSX.writeFile(wb, `${rep.file}.xlsx`);
+                        }
+                      }}>{icon} {ext.toUpperCase()}</Btn>
+                    ))}
+                  </div>
                 </Card>
               ))}
             </div>

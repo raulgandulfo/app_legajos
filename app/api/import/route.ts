@@ -53,18 +53,18 @@ export async function POST(req: NextRequest) {
   });
 
   const ALIAS: Record<string, string[]> = {
-    cuil:           ["CUIL", "cuil"],
-    nro_asociado:   ["Numero", "Nro", "nro_asociado", "NRO"],
-    nombre_completo:["Apellido y Nombre", "Nombre", "nombre_completo"],
-    dni:            ["Nro. de Documento", "DNI", "dni", "Documento"],
-    domicilio:      ["Calle", "Domicilio", "domicilio"],
-    localidad:      ["Localidad", "localidad"],
+    cuil:           ["CUIL", "cuil", "C.U.I.L.", "CUIT"],
+    nro_asociado:   ["Legajo", "Nro. de Legajo", "Nro.Legajo", "Numero de Legajo", "Numero", "Nro", "nro_asociado", "NRO", "Número de Legajo", "Nro Legajo"],
+    nombre_completo:["Apellido y Nombre", "Nombre y Apellido", "Nombre Completo", "Nombre", "nombre_completo", "Apellido"],
+    dni:            ["Nro. de Documento", "Número de Documento", "Nro. Documento", "DNI", "dni", "Documento", "Nro Documento"],
+    domicilio:      ["Calle", "Domicilio", "domicilio", "Dirección", "Direccion", "Domicilio Particular"],
+    localidad:      ["Localidad", "localidad", "Ciudad"],
     provincia:      ["Provincia", "provincia"],
-    telefono:       ["Telefono movil", "Telefono fijo", "Telefono", "telefono"],
-    sector:         ["Sector", "sector"],
-    categoria:      ["Categoria", "categoria"],
-    fecha_ingreso:  ["Fecha de alta", "Fecha Ingreso", "fecha_ingreso"],
-    cod_area:       ["Codigo de area", "Cod. Area"],
+    telefono:       ["Telefono movil", "Teléfono Celular", "Celular", "Telefono fijo", "Teléfono", "Telefono", "telefono"],
+    sector:         ["Sector", "sector", "Sección", "Seccion", "Area", "Área"],
+    categoria:      ["Categoria", "Categoría", "categoria", "Cat."],
+    fecha_ingreso:  ["Fecha de alta", "Fecha Alta", "Fecha Ingreso", "Fecha de Ingreso", "fecha_ingreso"],
+    cod_area:       ["Codigo de area", "Cod. Area", "Código de área", "Cód. Área"],
   };
 
   let ok = 0;
