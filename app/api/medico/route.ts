@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const cuil = searchParams.get("cuil");
   const reporte = searchParams.get("reporte");
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const { cuil, fecha, motivo } = await req.json();
   await supabase.from("historial_medico").insert({ cuil_asociado: cuil, fecha, motivo });
   return NextResponse.json({ ok: true });

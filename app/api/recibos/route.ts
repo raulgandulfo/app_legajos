@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import JSZip from "jszip";
 
@@ -9,16 +9,13 @@ function fmt(v: number) {
 
 interface LiqRow {
   cuil: string;
-  periodo?: string;
   nombre_completo?: string;
   nro_legajo?: string;
   descripcion?: string;
-  tipo_concepto?: string;
   importe?: number;
   sector?: string;
   categoria?: string;
   jornal_basico?: number;
-  neto?: number;
   haberes_rem?: number;
   haberes_no_rem?: number;
   retenciones?: number;
@@ -29,6 +26,7 @@ interface AsoMap {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const { periodos, titulo, fecha } = await req.json();
 
   const { data: rows } = await supabase
@@ -72,10 +70,8 @@ export async function POST(req: NextRequest) {
     const totalDesc = descRows.reduce((s, r) => s + (r.retenciones || 0), 0);
     const descuentos = descRows.map(r => ({ desc: r.descripcion || "", monto: r.retenciones || 0 }));
 
-    const netoFinal = totalHaberes - totalDesc;
-
     if (!bySector[sec]) bySector[sec] = [];
-    bySector[sec].push({ cuil, nombre, cat, sec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
+    bySector[sec].push({ cuil, nombre, cat, sec, nro, puntos, vPunto, total: totalHaberes, neto: totalHaberes - totalDesc, descuentos });
   }
 
   const zip = new JSZip();
@@ -105,10 +101,10 @@ export async function POST(req: NextRequest) {
         line("Mano de obra asociados (RT 24) / Retornos (Ley 20.337)", 9);
         y -= 6;
         line(`Asociado/a: ${r.nombre}`);
-        line(`Asociado N°: ${r.nro}`);
+        line(`Asociado N: ${r.nro}`);
         line(`CUIL: ${r.cuil}`);
-        line(`Categoría funcional: ${r.cat}`);
-        line(`Sector: ${r.sec} | Período: ${titulo}`);
+        line(`Categoria funcional: ${r.cat}`);
+        line(`Sector: ${r.sec} | Periodo: ${titulo}`);
         y -= 4;
         line(`Puntos: ${r.puntos.toFixed(2)} | Valor punto: $${fmt(r.vPunto)} | Total: $${fmt(r.total)}`, 10, true);
         y -= 2;
@@ -124,18 +120,14 @@ export async function POST(req: NextRequest) {
         const words = txt.split(" ");
         let line2 = "";
         for (const w of words) {
-          if ((line2 + w).length > 90) {
-            line(line2.trim(), 10, false, 10);
-            line2 = w + " ";
-          } else {
-            line2 += w + " ";
-          }
+          if ((line2 + w).length > 90) { line(line2.trim()); line2 = w + " "; }
+          else line2 += w + " ";
         }
-        if (line2.trim()) line(line2.trim(), 10, false, 10);
+        if (line2.trim()) line(line2.trim());
 
         y = baseY - 390;
         page.drawText("Firma del Asociado/a: ____________________", { x: 10, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
-        page.drawText(`Fecha de emisión: ${fecha}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
+        page.drawText(`Fecha de emision: ${fecha}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
 
         if (j === 0) {
           page.drawLine({ start: { x: 10, y: baseY - 405 }, end: { x: 585, y: baseY - 405 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });

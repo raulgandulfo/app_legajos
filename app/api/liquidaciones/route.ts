@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const cuil = searchParams.get("cuil");
   const periodo = searchParams.get("periodo");
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const { filas } = await req.json();
   for (let i = 0; i < filas.length; i += 500) {
     await supabase.from("liquidaciones").insert(filas.slice(i, i + 500));

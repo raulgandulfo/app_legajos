@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const { username, password } = await req.json();
   const { data } = await supabase
     .from("usuarios")

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const cuil = searchParams.get("cuil");
   const reporte = searchParams.get("reporte");
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const { cuil, monto_total, cantidad_cuotas, fecha_otorgamiento, fechas_vencimientos } = await req.json();
 
   const { data: p } = await supabase.from("prestamos").insert({
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const supabase = getSupabase();
   const { id, fecha_vencimiento, estado } = await req.json();
   await supabase.from("prestamos_cuotas").update({ fecha_vencimiento, estado }).eq("id", id);
   return NextResponse.json({ ok: true });

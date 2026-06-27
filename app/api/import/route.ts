@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
 function getCell(row: Record<string, unknown>, aliases: string[]): string {
@@ -30,6 +30,7 @@ function deduplicateCols(headers: string[]): string[] {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const formData = await req.formData();
   const file = formData.get("file") as File;
   const sobreescribir = formData.get("sobreescribir") === "true";
@@ -53,17 +54,17 @@ export async function POST(req: NextRequest) {
 
   const ALIAS: Record<string, string[]> = {
     cuil:           ["CUIL", "cuil"],
-    nro_asociado:   ["Número", "Nro", "nro_asociado", "NRO"],
+    nro_asociado:   ["Numero", "Nro", "nro_asociado", "NRO"],
     nombre_completo:["Apellido y Nombre", "Nombre", "nombre_completo"],
     dni:            ["Nro. de Documento", "DNI", "dni", "Documento"],
     domicilio:      ["Calle", "Domicilio", "domicilio"],
     localidad:      ["Localidad", "localidad"],
     provincia:      ["Provincia", "provincia"],
-    telefono:       ["Teléfono móvil", "Teléfono fijo", "Teléfono", "Telefono", "telefono"],
+    telefono:       ["Telefono movil", "Telefono fijo", "Telefono", "telefono"],
     sector:         ["Sector", "sector"],
-    categoria:      ["Categoría", "Categoria", "categoria"],
+    categoria:      ["Categoria", "categoria"],
     fecha_ingreso:  ["Fecha de alta", "Fecha Ingreso", "fecha_ingreso"],
-    cod_area:       ["Código de área", "Cod. Area"],
+    cod_area:       ["Codigo de area", "Cod. Area"],
   };
 
   let ok = 0;
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
       let tel = getCell(row, ALIAS.telefono);
       if (!tel) {
         const area = getCell(row, ALIAS.cod_area);
-        const fijo = getCell(row, ["Teléfono fijo", "telefono"]);
+        const fijo = getCell(row, ["Telefono fijo", "telefono"]);
         if (area && fijo) tel = `0${area}${fijo}`;
         else tel = fijo;
       }

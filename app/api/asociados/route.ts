@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const cuil = searchParams.get("cuil");
   const all = searchParams.get("all");
@@ -42,12 +43,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const datos = await req.json();
+  const supabase = getSupabase();
   const { error } = await supabase.from("maestro_asociados").upsert(datos, { onConflict: "cuil" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
+  const supabase = getSupabase();
   const { cuil } = await req.json();
   await supabase.from("maestro_asociados").update({ activo: false }).eq("cuil", cuil);
   return NextResponse.json({ ok: true });
