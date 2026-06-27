@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const datos = await req.json();
   const supabase = getSupabase();
+  const datos = await req.json();
   const { error } = await supabase.from("maestro_asociados").upsert(datos, { onConflict: "cuil" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = getSupabase();
   const body = await req.json();
   await supabase.from("sanciones").insert({
     cuil_asociado: body.cuil, tipo: body.tipo,
