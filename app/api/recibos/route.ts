@@ -147,8 +147,8 @@ export async function POST(req: NextRequest) {
     zip.file(`Recibos_${sec.replace(/\s+/g, "_")}.pdf`, pdfBytes);
   }
 
-  const zipBytes = await zip.generateAsync({ type: "nodebuffer" });
-  return new NextResponse(zipBytes, {
+  const zipBytes = await zip.generateAsync({ type: "uint8array" });
+  return new NextResponse(zipBytes as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="Recibos_${titulo.replace(/\s+/g, "_")}.zip"`,
