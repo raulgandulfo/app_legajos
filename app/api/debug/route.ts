@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const { data, error } = await supabase.from("usuarios").select("username, rol").limit(5);
+    const { data, error } = await supabase.from("usuarios").select("username, rol, password").limit(5);
     return NextResponse.json({
       ok: !error,
       SUPABASE_URL: "SET",
