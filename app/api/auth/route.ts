@@ -3,15 +3,23 @@ import { getSupabase } from "@/lib/supabase";
 import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch (e) {
+    return NextResponse.json({ error: "Error de configuración del servidor: " + (e as Error).message }, { status: 500 });
+  }
   const { username, password } = await req.json();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("usuarios")
     .select("*")
     .eq("username", username)
     .eq("password", password)
     .single();
 
+  if (error && error.code !== "PGRST116") {
+    return NextResponse.json({ error: "Error de base de datos: " + error.message }, { status: 500 });
+  }
   if (!data) return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
 
   const cookieStore = await cookies();
