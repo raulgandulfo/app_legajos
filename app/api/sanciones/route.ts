@@ -1,0 +1,33 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const cuil = searchParams.get("cuil");
+  const reporte = searchParams.get("reporte");
+
+  if (reporte) {
+    const { data } = await supabase
+      .from("sanciones")
+      .select("*, maestro_asociados(nombre_completo)")
+      .order("fecha_desde", { ascending: false });
+    return NextResponse.json(data || []);
+  }
+
+  if (cuil) {
+    const { data } = await supabase
+      .from("sanciones").select("*").eq("cuil_asociado", cuil).order("fecha_desde", { ascending: false });
+    return NextResponse.json(data || []);
+  }
+
+  return NextResponse.json([]);
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  await supabase.from("sanciones").insert({
+    cuil_asociado: body.cuil, tipo: body.tipo,
+    fecha_desde: body.fecha_desde, fecha_hasta: body.fecha_hasta, motivo: body.motivo,
+  });
+  return NextResponse.json({ ok: true });
+}

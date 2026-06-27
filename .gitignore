@@ -9,3 +9,8 @@ secrets.toml
 credentials.json
 outputs/
 *.db
+
+# Next.js
+.next/
+node_modules/
+out/
