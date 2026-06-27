@@ -471,9 +471,7 @@ export default function AdminPage() {
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600"><tr>{["CUIL","Nombre","Monto Total","Cuota N°","Monto Cuota","Vencimiento","Estado","Otorgamiento"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
-                    <tbody>
-                      {(async () => null, [])}
-                    </tbody>
+                    <tbody></tbody>
                   </table>
                 </div>
                 <Btn variant="secondary" className="mt-3" onClick={async () => {
