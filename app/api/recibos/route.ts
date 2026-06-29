@@ -32,6 +32,17 @@ function safeMax(arr: number[]): number {
   return filtered.length ? Math.max(...filtered) : 0;
 }
 
+// pdf-lib usa WinAnsi: elimina caracteres fuera de rango (0xFFFD, etc.)
+function sp(s: string): string {
+  return (s || "").replace(/[�Ā-￿]/g, c => {
+    const map: Record<string, string> = {
+      "’": "'", "‘": "'", "“": '"', "”": '"',
+      "–": "-", "—": "-", "•": "*", "°": "o",
+    };
+    return map[c] ?? "?";
+  });
+}
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { periodos, titulo, fecha } = await req.json();
@@ -121,11 +132,11 @@ export async function POST(req: NextRequest) {
         line("COOPERATIVA DE TRABAJO DE SERVICIOS AGROINDUSTRIALES LTDA.", 11, true);
         line("Mano de obra asociados (RT 24) / Retornos (Ley 20.337)", 9);
         y -= 6;
-        line(`Asociado/a: ${r.nombre}`);
-        line(`Asociado N: ${r.nro}`);
-        line(`CUIL: ${r.cuil}`);
-        line(`Categoria funcional: ${r.cat}`);
-        line(`Sector: ${r.sec} | Periodo: ${titulo}`);
+        line(`Asociado/a: ${sp(r.nombre)}`);
+        line(`Asociado N: ${sp(r.nro)}`);
+        line(`CUIL: ${sp(r.cuil)}`);
+        line(`Categoria funcional: ${sp(r.cat)}`);
+        line(`Sector: ${sp(r.sec)} | Periodo: ${sp(titulo)}`);
         y -= 4;
         line(`Puntos: ${r.puntos.toFixed(2)} | Valor punto: $${fmt(r.vPunto)} | Total: $${fmt(r.total)}`, 10, true);
         y -= 2;
@@ -133,7 +144,7 @@ export async function POST(req: NextRequest) {
         if (r.descuentos.length > 0) {
           line("Descuentos:", 9, true);
           for (const d of r.descuentos) {
-            line(`  - ${d.desc}: $${fmt(d.monto)}`, 9, false, 15);
+            line(`  - ${sp(d.desc)}: $${fmt(d.monto)}`, 9, false, 15);
           }
         }
         y -= 4;
@@ -148,7 +159,7 @@ export async function POST(req: NextRequest) {
 
         y = baseY - 390;
         page.drawText("Firma del Asociado/a: ____________________", { x: 10, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
-        page.drawText(`Fecha de emision: ${fecha}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
+        page.drawText(`Fecha de emision: ${sp(fecha)}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
 
         if (j === 0) {
           page.drawLine({ start: { x: 10, y: baseY - 405 }, end: { x: 585, y: baseY - 405 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });

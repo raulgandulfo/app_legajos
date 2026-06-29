@@ -111,5 +111,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok, errores });
+  const columnas = Object.keys(raw[0] || {});
+  return NextResponse.json({ ok, errores, columnas });
 }

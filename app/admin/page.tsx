@@ -111,6 +111,7 @@ export default function AdminPage() {
   const [repFechaDesde, setRepFechaDesde] = useState("");
   const [repFechaHasta, setRepFechaHasta] = useState("");
   const [repCuil, setRepCuil] = useState("");
+  const [repSector, setRepSector] = useState("");
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
@@ -184,7 +185,8 @@ export default function AdminPage() {
     fd.append("sobreescribir", String(sobreescribir));
     const r = await fetch("/api/import", { method: "POST", body: fd });
     const d = await r.json();
-    setMsg({ text: `✅ ${d.ok} asociados importados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+    const colInfo = d.columnas?.length ? ` | Columnas detectadas: ${d.columnas.join(", ")}` : "";
+    setMsg({ text: `✅ ${d.ok} asociados importados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}${colInfo}`, ok: true });
     loadBase();
     setImporting(false);
   }
@@ -628,13 +630,21 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold text-[#1e293b] mb-4">📊 Reportes</h1>
             <Card>
               <h3 className="font-bold text-sm mb-3">Filtros</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4 mb-3">
                 <div><Label>Fecha Desde</Label><Input type="date" value={repFechaDesde} onChange={e => setRepFechaDesde(e.target.value)} /></div>
                 <div><Label>Fecha Hasta</Label><Input type="date" value={repFechaHasta} onChange={e => setRepFechaHasta(e.target.value)} /></div>
-                <div><Label>Asociado (CUIL o Nombre)</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Sector</Label>
+                  <Select value={repSector} onChange={e => setRepSector(e.target.value)}>
+                    <option value="">Todos los sectores</option>
+                    {sectores.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                  </Select>
+                </div>
+                <div><Label>Asociado</Label>
                   <Select value={repCuil} onChange={e => setRepCuil(e.target.value)}>
                     <option value="">Todos</option>
-                    {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
+                    {(repSector ? asociados.filter(a => a.sector === repSector) : asociados).map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
                   </Select>
                 </div>
               </div>
@@ -655,6 +665,7 @@ export default function AdminPage() {
                         let d: Record<string, unknown>[] = await r.json();
                         if (rep.fechaField && repFechaDesde) d = d.filter(row => String(row[rep.fechaField!] || "") >= repFechaDesde);
                         if (rep.fechaField && repFechaHasta) d = d.filter(row => String(row[rep.fechaField!] || "") <= repFechaHasta);
+                        if (repSector) d = d.filter(row => row["sector"] === repSector || row["maestro_asociados"] === undefined);
                         if (repCuil && rep.cuilField) d = d.filter(row => row[rep.cuilField!] === repCuil);
                         if (!d.length) { setMsg({ text: "Sin datos con esos filtros.", ok: false }); return; }
                         if (ext === "csv") {
