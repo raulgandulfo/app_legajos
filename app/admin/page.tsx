@@ -12,6 +12,16 @@ interface AusenciaMedica { id: number; cuil_asociado: string; fecha: string; mot
 interface Usuario { id: number; username: string; rol: string; }
 
 function fmt(v: number) { return v.toLocaleString("es-AR", { minimumFractionDigits: 2 }); }
+function parseArgNum(s: unknown): number {
+  const str = String(s ?? "").trim();
+  if (!str || str === "null" || str === "0") return 0;
+  const lastComma = str.lastIndexOf(",");
+  const lastDot = str.lastIndexOf(".");
+  if (lastComma > lastDot) {
+    return parseFloat(str.replace(/\./g, "").replace(",", ".")) || 0;
+  }
+  return parseFloat(str.replace(/,/g, "")) || 0;
+}
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-white rounded-xl p-5 mb-4 shadow border border-gray-100 ${className}`}>{children}</div>;
 }
@@ -206,15 +216,15 @@ export default function AdminPage() {
       nombre_completo: String(r["Apellido y Nombre"] || "").trim() || null,
       descripcion: String(r["Descripción Concepto"] || "").trim(),
       tipo_concepto: String(r["Tipo de Concepto"] || "").trim(),
-      cantidad: parseFloat(String(r["Cantidad"] || 0).replace(",", ".")) || 0,
-      importe: parseFloat(String(r["Importe Calc"] || r["Importe"] || 0).replace(",", ".")) || 0,
+      cantidad: parseArgNum(r["Cantidad"]),
+      importe: parseArgNum(r["Importe Calc"] ?? r["Importe"]),
       sector: String(r["Sector"] || "").trim() || null,
       categoria: String(r["Categoría"] || "").trim() || null,
-      jornal_basico: parseFloat(String(r["Jornal / Básico"] || r["Jornal/Básico"] || 0).replace(",", ".")) || 0,
-      neto: parseFloat(String(r["NETO"] || r["Neto"] || 0).replace(",", ".")) || 0,
-      haberes_rem: parseFloat(String(r["Haberes remunerativos"] || 0).replace(",", ".")) || 0,
-      haberes_no_rem: parseFloat(String(r["Haberes No remunerativos"] || 0).replace(",", ".")) || 0,
-      retenciones: parseFloat(String(r["Retenciones"] || r["Total Retenciones"] || 0).replace(",", ".")) || 0,
+      jornal_basico: parseArgNum(r["Jornal / Básico"] ?? r["Jornal/Básico"]),
+      neto: parseArgNum(r["NETO"] ?? r["Neto"]),
+      haberes_rem: parseArgNum(r["Haberes remunerativos"]),
+      haberes_no_rem: parseArgNum(r["Haberes No remunerativos"]),
+      retenciones: parseArgNum(r["Retenciones"] ?? r["Total Retenciones"]),
     })).filter(f => f.cuil && f.cuil !== "null");
     await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas }) });
     const cols = rows.length ? Object.keys(rows[0]).join(", ") : "";
