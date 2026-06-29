@@ -409,14 +409,13 @@ export default function AdminPage() {
                   </Btn>
                 </Card>
                 <Card>
-                  <h3 className="font-bold text-[#1e293b] mb-2">🔢 Cargar Números de Asociado</h3>
-                  <p className="text-sm text-gray-500 mb-4">Carga los números de asociado (nro_asociado) precargados desde el archivo asociados.json para todos los CUIL registrados.</p>
+                  <h3 className="font-bold text-[#1e293b] mb-2">🔑 Cargar Claves de Acceso de Asociados</h3>
+                  <p className="text-sm text-gray-500 mb-4">Crea o actualiza los usuarios de acceso al portal de asociados usando el archivo asociados.json (CUIL → clave inicial). Los asociados luego pueden cambiar su clave desde el portal.</p>
                   <Btn variant="secondary" onClick={async () => {
                     const r = await fetch("/api/import-nros", { method: "POST" });
                     const d = await r.json();
-                    setMsg({ text: `✅ ${d.ok}/${d.total} nros. de asociado actualizados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
-                    loadBase();
-                  }}>🔢 Cargar Nros. de Asociado</Btn>
+                    setMsg({ text: `✅ ${d.ok}/${d.total} claves cargadas.${d.omitidos ? ` (${d.omitidos} CUIL sin datos en maestro)` : ""}${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                  }}>🔑 Cargar Claves de Asociados</Btn>
                 </Card>
               </div>
             )}

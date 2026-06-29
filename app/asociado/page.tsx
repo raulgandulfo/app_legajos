@@ -25,6 +25,7 @@ export default function AsociadoPage() {
   const [tab, setTab] = useState("login");
   const [cuil, setCuil] = useState(""); const [pass, setPass] = useState("");
   const [regCuil, setRegCuil] = useState(""); const [regPass, setRegPass] = useState(""); const [regPass2, setRegPass2] = useState("");
+  const [rstCuil, setRstCuil] = useState(""); const [rstDni, setRstDni] = useState(""); const [rstPass, setRstPass] = useState(""); const [rstPass2, setRstPass2] = useState("");
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState("recibos");
   const [periodos, setPeriodos] = useState<string[]>([]);
@@ -69,6 +70,15 @@ export default function AsociadoPage() {
     setSession(s);
   }
 
+  async function resetClave(e: React.FormEvent) {
+    e.preventDefault();
+    if (rstPass !== rstPass2) { setMsg({ text: "Las contraseñas no coinciden.", ok: false }); return; }
+    const r = await fetch("/api/auth/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: rstCuil, dni: rstDni, password: rstPass }) });
+    const d = await r.json();
+    setMsg({ text: d.error || "Contraseña actualizada. Ya podés iniciar sesión.", ok: !d.error });
+    if (!d.error) { setRstCuil(""); setRstDni(""); setRstPass(""); setRstPass2(""); setTab("login"); }
+  }
+
   async function registro(e: React.FormEvent) {
     e.preventDefault();
     if (regPass !== regPass2) { setMsg({ text: "Las contraseñas no coinciden.", ok: false }); return; }
@@ -102,16 +112,16 @@ export default function AsociadoPage() {
         <button onClick={() => router.push("/")} className="ml-6 mt-4 text-sm text-gray-500 hover:text-gray-700">← Volver al inicio</button>
         <div className="flex justify-center mt-8">
           <div className="bg-white rounded-xl shadow p-8 w-full max-w-md border-t-4 border-t-blue-500">
-            <div className="flex gap-2 mb-6">
-              {["login", "registro"].map(t => (
+            <div className="flex gap-1 mb-6">
+              {[["login","🔐 Ingresar"],["registro","📝 Registrarme"],["reset","🔑 Olvidé mi clave"]].map(([t, label]) => (
                 <button key={t} onClick={() => { setTab(t); setMsg(null); }}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>
-                  {t === "login" ? "🔐 Ya tengo cuenta" : "📝 Registrarme"}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${tab === t ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {label}
                 </button>
               ))}
             </div>
             {msg && <div className={`p-3 rounded-lg text-sm mb-4 ${msg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{msg.text}</div>}
-            {tab === "login" ? (
+            {tab === "login" && (
               <form onSubmit={login} className="space-y-4">
                 <div><label className="text-sm font-semibold text-gray-600">CUIL (sin guiones)</label>
                   <input className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={cuil} onChange={e => setCuil(e.target.value)} placeholder="20123456789" /></div>
@@ -119,7 +129,8 @@ export default function AsociadoPage() {
                   <input type="password" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={pass} onChange={e => setPass(e.target.value)} /></div>
                 <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors">Ingresar</button>
               </form>
-            ) : (
+            )}
+            {tab === "registro" && (
               <form onSubmit={registro} className="space-y-4">
                 <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">Tu CUIL debe haber sido cargado previamente por RRHH.</p>
                 <div><label className="text-sm font-semibold text-gray-600">Tu CUIL</label>
@@ -129,6 +140,20 @@ export default function AsociadoPage() {
                 <div><label className="text-sm font-semibold text-gray-600">Confirmá la contraseña</label>
                   <input type="password" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={regPass2} onChange={e => setRegPass2(e.target.value)} /></div>
                 <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors">Crear mi cuenta</button>
+              </form>
+            )}
+            {tab === "reset" && (
+              <form onSubmit={resetClave} className="space-y-4">
+                <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">Ingresá tu CUIL y tu DNI para verificar tu identidad y establecer una nueva contraseña.</p>
+                <div><label className="text-sm font-semibold text-gray-600">Tu CUIL (sin guiones)</label>
+                  <input className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={rstCuil} onChange={e => setRstCuil(e.target.value)} placeholder="20123456789" /></div>
+                <div><label className="text-sm font-semibold text-gray-600">Tu DNI (sin puntos)</label>
+                  <input className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={rstDni} onChange={e => setRstDni(e.target.value)} placeholder="12345678" /></div>
+                <div><label className="text-sm font-semibold text-gray-600">Nueva contraseña</label>
+                  <input type="password" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={rstPass} onChange={e => setRstPass(e.target.value)} /></div>
+                <div><label className="text-sm font-semibold text-gray-600">Confirmá la nueva contraseña</label>
+                  <input type="password" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg" value={rstPass2} onChange={e => setRstPass2(e.target.value)} /></div>
+                <button className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg font-semibold transition-colors">🔑 Cambiar contraseña</button>
               </form>
             )}
           </div>
