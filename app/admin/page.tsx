@@ -428,11 +428,7 @@ export default function AdminPage() {
             {preTab === "nuevo" && (
               <Card>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div><Label>Asociado</Label>
-                    <Select value={preCuil} onChange={e => setPreCuil(e.target.value)}>
-                      {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo} — {a.cuil}</option>)}
-                    </Select>
-                  </div>
+                  <AsoSearch asociados={asociados} value={preCuil} onChange={setPreCuil} />
                   <div><Label>Fecha de otorgamiento</Label><Input type="date" value={preFecha} onChange={e => setPreFecha(e.target.value)} /></div>
                   <div><Label>Monto Total ($)</Label><Input type="number" value={preMonto} onChange={e => setPreMonto(Number(e.target.value))} /></div>
                   <div><Label>Cantidad de cuotas</Label><Input type="number" min={1} max={60} value={preCuotas} onChange={e => setPreCuotas(Number(e.target.value))} /></div>
@@ -456,18 +452,16 @@ export default function AdminPage() {
 
             {preTab === "editar" && (
               <Card>
-                <div className="mb-4"><Label>Asociado</Label>
-                  <Select value={preEditCuil} onChange={async e => {
-                    setPreEditCuil(e.target.value);
-                    const r = await fetch(`/api/prestamos?cuil=${e.target.value}`);
+                <div className="mb-4">
+                  <AsoSearch asociados={asociados} value={preEditCuil} onChange={async cuil => {
+                    setPreEditCuil(cuil);
+                    const r = await fetch(`/api/prestamos?cuil=${cuil}`);
                     const d = await r.json();
                     setPrestamos(d);
                     const ed: Record<number, { fecha: string; estado: string }> = {};
                     d.forEach((p: Prestamo) => p.prestamos_cuotas?.forEach(c => { ed[c.id!] = { fecha: c.fecha_vencimiento, estado: c.estado }; }));
                     setCuotasEdit(ed);
-                  }}>
-                    {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo} — {a.cuil}</option>)}
-                  </Select>
+                  }} label="Asociado" />
                 </div>
                 {prestamos.map(p => (
                   <div key={p.id} className="border border-gray-200 rounded-xl p-4 mb-4">
@@ -525,11 +519,7 @@ export default function AdminPage() {
             {sanTab === "nueva" && (
               <Card>
                 <div className="space-y-4">
-                  <div><Label>Asociado sancionado</Label>
-                    <Select value={sanCuil} onChange={e => setSanCuil(e.target.value)}>
-                      {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo} — {a.cuil}</option>)}
-                    </Select>
-                  </div>
+                  <AsoSearch asociados={asociados} value={sanCuil} onChange={setSanCuil} label="Asociado sancionado" />
                   <div><Label>Tipo de medida</Label>
                     <Select value={sanTipo} onChange={e => setSanTipo(e.target.value)}>
                       {["Apercibimiento","Suspensión"].map(t => <option key={t}>{t}</option>)}
@@ -589,11 +579,7 @@ export default function AdminPage() {
             {medTab === "nueva" && (
               <Card>
                 <div className="space-y-4">
-                  <div><Label>Asociado</Label>
-                    <Select value={medCuil} onChange={e => setMedCuil(e.target.value)}>
-                      {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo} — {a.cuil}</option>)}
-                    </Select>
-                  </div>
+                  <AsoSearch asociados={asociados} value={medCuil} onChange={setMedCuil} />
                   <div><Label>Fecha de ausencia</Label><Input type="date" value={medFecha} onChange={e => setMedFecha(e.target.value)} /></div>
                   <div><Label>Motivo / Diagnóstico</Label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none" rows={3} value={medMotivo} onChange={e => setMedMotivo(e.target.value)} /></div>
                   <Btn onClick={async () => {
@@ -606,14 +592,12 @@ export default function AdminPage() {
             )}
             {medTab === "hist" && (
               <Card>
-                <div className="mb-4"><Label>Ver historial de</Label>
-                  <Select value={medHistCuil} onChange={async e => {
-                    setMedHistCuil(e.target.value);
-                    const r = await fetch(`/api/medico?cuil=${e.target.value}`);
+                <div className="mb-4">
+                  <AsoSearch asociados={asociados} value={medHistCuil} onChange={async cuil => {
+                    setMedHistCuil(cuil);
+                    const r = await fetch(`/api/medico?cuil=${cuil}`);
                     setMedHistorial(await r.json());
-                  }}>
-                    {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo} — {a.cuil}</option>)}
-                  </Select>
+                  }} label="Ver historial de" />
                 </div>
                 <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
                   <table className="w-full text-sm">
@@ -835,6 +819,53 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function AsoSearch({ asociados, value, onChange, label = "Asociado" }: {
+  asociados: Asociado[];
+  value: string;
+  onChange: (cuil: string) => void;
+  label?: string;
+}) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = asociados.find(a => a.cuil === value);
+  const results = q.trim()
+    ? asociados.filter(a =>
+        a.nombre_completo.toLowerCase().includes(q.toLowerCase()) ||
+        a.cuil.includes(q)
+      ).slice(0, 15)
+    : [];
+
+  return (
+    <div className="relative">
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          placeholder="Buscar por nombre o CUIL..."
+          value={open ? q : (selected ? `${selected.nombre_completo} — ${selected.cuil}` : "")}
+          onFocus={() => { setOpen(true); setQ(""); }}
+          onChange={e => setQ(e.target.value)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto mt-1">
+          {results.map(a => (
+            <button
+              key={a.cuil}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-0"
+              onMouseDown={() => { onChange(a.cuil); setOpen(false); setQ(""); }}
+            >
+              <span className="font-medium">{a.nombre_completo}</span>
+              <span className="text-gray-400 ml-2 text-xs">{a.cuil}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

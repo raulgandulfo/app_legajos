@@ -27,6 +27,11 @@ interface AsoMap {
   [cuil: string]: { nombre_completo?: string; nro_asociado?: string };
 }
 
+function safeMax(arr: number[]): number {
+  const filtered = arr.filter(n => isFinite(n));
+  return filtered.length ? Math.max(...filtered) : 0;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { periodos, titulo, fecha } = await req.json();
@@ -35,6 +40,8 @@ export async function POST(req: NextRequest) {
     .from("liquidaciones").select("*").in("periodo", periodos);
 
   if (!rows?.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
+
+  try {
 
   const cuils = [...new Set(rows.map((r: LiqRow) => r.cuil))];
   const { data: asoData } = await supabase.from("maestro_asociados")
@@ -62,9 +69,9 @@ export async function POST(req: NextRequest) {
     const nro = first.nro_legajo || asoMap[cuil]?.nro_asociado || "S/D";
 
     // buscar el mayor valor de haberes entre todas las filas del empleado
-    const maxHabRem = Math.max(...grupo.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
-    const maxJornal = Math.max(...grupo.map(r => r.jornal_basico || 0));
-    const maxNeto = Math.max(...grupo.map(r => r.neto || 0));
+    const maxHabRem = safeMax(grupo.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
+    const maxJornal = safeMax(grupo.map(r => r.jornal_basico || 0));
+    const maxNeto = safeMax(grupo.map(r => r.neto || 0));
     const totalHaberes = maxHabRem > 0 ? maxHabRem : maxJornal > 0 ? maxJornal : maxNeto;
 
     const puntosRows = grupo.filter(r => (r.descripcion || "").toUpperCase().includes("PUNTO"));
@@ -78,7 +85,7 @@ export async function POST(req: NextRequest) {
       String(r.descripcion || "").toUpperCase().includes("RETENCIÓN") ||
       String(r.descripcion || "").toUpperCase().includes("RETENCION")
     );
-    const maxRet = Math.max(...grupo.map(r => r.retenciones || 0));
+    const maxRet = safeMax(grupo.map(r => r.retenciones || 0));
     const totalDesc = maxRet > 0 ? maxRet : descRows.reduce((s, r) => s + (r.retenciones || 0), 0);
     const descuentos = descRows.filter(r => (r.retenciones || 0) > 0).map(r => ({ desc: r.descripcion || "", monto: r.retenciones || 0 }));
 
@@ -160,4 +167,8 @@ export async function POST(req: NextRequest) {
       "Content-Disposition": `attachment; filename="Recibos_${titulo.replace(/\s+/g, "_")}.zip"`,
     },
   });
+  } catch (e) {
+    console.error("Error generando recibos:", e);
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }
