@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   if (all) {
     const { data } = await supabase
       .from("maestro_asociados")
-      .select("cuil,nro_asociado,nombre_completo,sector,categoria")
+      .select("cuil,nro_asociado,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso")
       .eq("activo", true)
       .order("nombre_completo");
     return NextResponse.json(data || []);

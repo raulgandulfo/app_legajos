@@ -27,9 +27,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const body = await req.json();
+  const fecha_desde = body.tipo === "Suspensión" ? body.fecha_desde : body.fecha_sancion;
+  const fecha_hasta = body.tipo === "Suspensión" ? body.fecha_hasta : body.fecha_sancion;
   await supabase.from("sanciones").insert({
     cuil_asociado: body.cuil, tipo: body.tipo,
-    fecha_desde: body.fecha_desde, fecha_hasta: body.fecha_hasta, motivo: body.motivo,
+    fecha_desde, fecha_hasta, motivo: body.motivo,
   });
   return NextResponse.json({ ok: true });
 }

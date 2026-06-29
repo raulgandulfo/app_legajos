@@ -73,6 +73,7 @@ export default function AdminPage() {
   const [sanTab, setSanTab] = useState("nueva");
   const [sanCuil, setSanCuil] = useState("");
   const [sanTipo, setSanTipo] = useState("Apercibimiento");
+  const [sanFechaSancion, setSanFechaSancion] = useState(new Date().toISOString().slice(0, 10));
   const [sanDesde, setSanDesde] = useState(new Date().toISOString().slice(0, 10));
   const [sanHasta, setSanHasta] = useState(new Date().toISOString().slice(0, 10));
   const [sanMotivo, setSanMotivo] = useState("");
@@ -132,20 +133,26 @@ export default function AdminPage() {
   useEffect(() => { if (session) loadBase(); }, [session, loadBase]);
 
   useEffect(() => {
-    const n = preCuotas;
     const dates: string[] = [];
-    let cur = new Date(preFecha);
-    for (let i = 0; i < n; i++) {
-      // avanzar al siguiente vencimiento quincenal (15 o último día del mes)
-      cur = new Date(cur);
-      cur.setDate(cur.getDate() + 1);
-      if (cur.getDate() <= 15) {
-        cur.setDate(15);
+    const [y, m, d] = preFecha.split("-").map(Number);
+    let year = y, month = m, nextDay: number;
+    const lastDay = (yr: number, mo: number) => new Date(yr, mo, 0).getDate();
+    if (d < 15) {
+      nextDay = 15;
+    } else if (d < lastDay(year, month)) {
+      nextDay = lastDay(year, month);
+    } else {
+      month++; if (month > 12) { month = 1; year++; }
+      nextDay = 15;
+    }
+    for (let i = 0; i < preCuotas; i++) {
+      dates.push(`${year}-${String(month).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`);
+      if (nextDay === 15) {
+        nextDay = lastDay(year, month);
       } else {
-        cur.setMonth(cur.getMonth() + 1);
-        cur.setDate(0); // último día del mes anterior
+        month++; if (month > 12) { month = 1; year++; }
+        nextDay = 15;
       }
-      dates.push(cur.toISOString().slice(0, 10));
     }
     setPreFechasVto(dates);
   }, [preCuotas, preFecha]);
@@ -218,7 +225,7 @@ export default function AdminPage() {
     if (!periodosSel.length || !tituloRecibo) return;
     setGenRecibos(true);
     const r = await fetch("/api/recibos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodos: periodosSel, titulo: tituloRecibo, fecha: fechaEm }) });
-    if (!r.ok) { setMsg({ text: "Error al generar recibos.", ok: false }); setGenRecibos(false); return; }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); setMsg({ text: `Error al generar recibos: ${d.error || r.status}`, ok: false }); setGenRecibos(false); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -525,14 +532,18 @@ export default function AdminPage() {
                       {["Apercibimiento","Suspensión"].map(t => <option key={t}>{t}</option>)}
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><Label>Fecha Desde</Label><Input type="date" value={sanDesde} onChange={e => setSanDesde(e.target.value)} /></div>
-                    <div><Label>Fecha Hasta</Label><Input type="date" value={sanHasta} onChange={e => setSanHasta(e.target.value)} /></div>
-                  </div>
+                  {sanTipo === "Apercibimiento" ? (
+                    <div><Label>Fecha de sanción</Label><Input type="date" value={sanFechaSancion} onChange={e => setSanFechaSancion(e.target.value)} /></div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><Label>Fecha Desde</Label><Input type="date" value={sanDesde} onChange={e => setSanDesde(e.target.value)} /></div>
+                      <div><Label>Fecha Hasta</Label><Input type="date" value={sanHasta} onChange={e => setSanHasta(e.target.value)} /></div>
+                    </div>
+                  )}
                   <div><Label>Motivo</Label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none" rows={3} value={sanMotivo} onChange={e => setSanMotivo(e.target.value)} /></div>
                   <Btn onClick={async () => {
                     if (!sanMotivo) { setMsg({ text: "Ingresá el motivo.", ok: false }); return; }
-                    await fetch("/api/sanciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: sanCuil, tipo: sanTipo, fecha_desde: sanDesde, fecha_hasta: sanHasta, motivo: sanMotivo }) });
+                    await fetch("/api/sanciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: sanCuil, tipo: sanTipo, fecha_desde: sanDesde, fecha_hasta: sanHasta, fecha_sancion: sanFechaSancion, motivo: sanMotivo }) });
                     setMsg({ text: "Sanción registrada correctamente.", ok: true }); setSanMotivo("");
                   }}>📝 Registrar Sanción</Btn>
                 </div>
@@ -547,15 +558,14 @@ export default function AdminPage() {
                 }}>🔄 Cargar reporte</Btn>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr>{["CUIL","Nombre","Tipo","Desde","Hasta","Motivo"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["CUIL","Nombre","Tipo","Fecha","Motivo"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
                     <tbody>
                       {sanReporte.map(s => (
                         <tr key={s.id} className="border-t border-gray-100">
                           <td className="px-3 py-2">{s.cuil_asociado}</td>
                           <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
                           <td className="px-3 py-2">{s.tipo}</td>
-                          <td className="px-3 py-2">{s.fecha_desde}</td>
-                          <td className="px-3 py-2">{s.fecha_hasta}</td>
+                          <td className="px-3 py-2">{s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde}</td>
                           <td className="px-3 py-2">{s.motivo}</td>
                         </tr>
                       ))}

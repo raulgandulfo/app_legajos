@@ -60,11 +60,11 @@ export async function POST(req: NextRequest) {
     domicilio:      ["Calle", "Domicilio", "domicilio", "Dirección", "Direccion", "Domicilio Particular"],
     localidad:      ["Localidad", "localidad", "Ciudad"],
     provincia:      ["Provincia", "provincia"],
-    telefono:       ["Telefono movil", "Teléfono Celular", "Celular", "Telefono fijo", "Teléfono", "Telefono", "telefono"],
+    telefono:       ["Teléfono Movil", "Telefono Movil", "Teléfono movil", "Telefono movil", "Tel. Movil", "Tel.Movil", "Teléfono Celular", "Celular", "Movil", "Teléfono fijo", "Telefono fijo", "Telefono fijo", "Teléfono", "Telefono", "telefono", "Tel."],
     sector:         ["Sector", "sector", "Sección", "Seccion", "Area", "Área"],
-    categoria:      ["Categoria", "Categoría", "categoria", "Cat."],
+    categoria:      ["Categoría funcional", "Categoria funcional", "Categoría", "Categoria", "categoria", "Categ.", "Cat."],
     fecha_ingreso:  ["Fecha de alta", "Fecha Alta", "Fecha Ingreso", "Fecha de Ingreso", "fecha_ingreso"],
-    cod_area:       ["Codigo de area", "Cod. Area", "Código de área", "Cód. Área"],
+    cod_area:       ["Cód. de Área", "Cod. de Area", "Código de área", "Código de Área", "Codigo de area", "Cod. Area", "Cód. Área", "Cod.Area", "CodArea"],
   };
 
   let ok = 0;
