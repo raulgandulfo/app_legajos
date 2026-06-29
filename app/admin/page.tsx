@@ -217,7 +217,8 @@ export default function AdminPage() {
       retenciones: parseFloat(String(r["Retenciones"] || r["Total Retenciones"] || 0).replace(",", ".")) || 0,
     })).filter(f => f.cuil && f.cuil !== "null");
     await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas }) });
-    setMsg({ text: `✅ ${filas.length} registros cargados para ${liqPeriodo}.`, ok: true });
+    const cols = rows.length ? Object.keys(rows[0]).join(", ") : "";
+    setMsg({ text: `✅ ${filas.length} registros cargados para ${liqPeriodo}. Columnas: ${cols}`, ok: true });
     setLiqFile(null); setLiqPeriodo("");
     fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos);
     setLiqCargando(false);

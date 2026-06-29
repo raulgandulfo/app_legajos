@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import JSZip from "jszip";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 function fmt(v: number) {
   return v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -106,12 +108,17 @@ export async function POST(req: NextRequest) {
     bySector[sec].push({ cuil, nombre, cat, sec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
   }
 
+  // Intentar cargar logo desde public/logo.png
+  const logoPath = join(process.cwd(), "public", "logo.png");
+  const logoBytes = existsSync(logoPath) ? readFileSync(logoPath) : null;
+
   const zip = new JSZip();
 
   for (const [sec, recibos] of Object.entries(bySector)) {
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const logoImg = logoBytes ? await pdfDoc.embedPng(logoBytes).catch(() => null) : null;
 
     const sorted = [...recibos].sort((a, b) => a.nombre.localeCompare(b.nombre));
 
@@ -129,6 +136,11 @@ export async function POST(req: NextRequest) {
           y -= size + 3;
         };
 
+        if (logoImg) {
+          const logoDims = logoImg.scaleToFit(80, 30);
+          page.drawImage(logoImg, { x: 10, y: y - logoDims.height + 2, width: logoDims.width, height: logoDims.height });
+          y -= logoDims.height + 2;
+        }
         line("COOPERATIVA DE TRABAJO DE SERVICIOS AGROINDUSTRIALES LTDA.", 11, true);
         line("Mano de obra asociados (RT 24) / Retornos (Ley 20.337)", 9);
         y -= 6;

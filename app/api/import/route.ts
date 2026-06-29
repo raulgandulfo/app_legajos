@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
+// Normaliza: quita tildes, reemplaza U+FFFD, minúsculas, sin espacios extra
+function norm(s: string): string {
+  return String(s || "")
+    .replace(/�/g, "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().trim();
+}
+
 function getCell(row: Record<string, unknown>, aliases: string[]): string {
-  for (const a of aliases) {
-    const v = row[a];
-    if (v !== null && v !== undefined && String(v).trim() !== "" && String(v) !== "nan") {
-      return String(v).trim();
+  const normAliases = aliases.map(norm);
+  for (const [key, v] of Object.entries(row)) {
+    if (normAliases.includes(norm(key))) {
+      if (v !== null && v !== undefined && String(v).trim() !== "" && String(v) !== "nan") {
+        return String(v).trim();
+      }
     }
   }
   return "";
@@ -76,11 +86,14 @@ export async function POST(req: NextRequest) {
       const nombre = getCell(row, ALIAS.nombre_completo);
       if (!cuil || !nombre) continue;
 
+      // Onvio: primero prueba móvil directo, luego construye con área+fijo
       let tel = getCell(row, ALIAS.telefono);
       if (!tel) {
         const area = getCell(row, ALIAS.cod_area);
-        const fijo = getCell(row, ["Telefono fijo", "telefono"]);
-        if (area && fijo) tel = `0${area}${fijo}`;
+        const fijo = getCell(row, ["Teléfono fijo", "Telefono fijo", "telefono"]);
+        const movil = getCell(row, ["Teléfono móvil", "Telefono movil", "Movil"]);
+        if (movil) tel = movil;
+        else if (area && fijo) tel = `0${area}${fijo}`;
         else tel = fijo;
       }
 
