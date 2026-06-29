@@ -27,7 +27,7 @@ interface LiqRow {
 }
 
 interface AsoMap {
-  [cuil: string]: { nombre_completo?: string; nro_asociado?: string };
+  [cuil: string]: { nombre_completo?: string; nro_asociado?: string; sector?: string };
 }
 
 function safeMax(arr: number[]): number {
@@ -59,9 +59,9 @@ export async function POST(req: NextRequest) {
 
   const cuils = [...new Set(rows.map((r: LiqRow) => r.cuil))];
   const { data: asoData } = await supabase.from("maestro_asociados")
-    .select("cuil, nombre_completo, nro_asociado").in("cuil", cuils);
+    .select("cuil, nombre_completo, nro_asociado, sector").in("cuil", cuils).limit(10000);
   const asoMap: AsoMap = {};
-  (asoData || []).forEach((a: { cuil: string; nombre_completo?: string; nro_asociado?: string }) => { asoMap[a.cuil] = a; });
+  (asoData || []).forEach((a: { cuil: string; nombre_completo?: string; nro_asociado?: string; sector?: string }) => { asoMap[a.cuil] = a; });
 
   const bySector: Record<string, {
     cuil: string; nombre: string; cat: string; sec: string; nro: string;
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const first = grupo[0];
     const nombre = first.nombre_completo || asoMap[cuil]?.nombre_completo || cuil;
     const cat = first.categoria || grupo.find(r => r.categoria)?.categoria || "";
-    const sec = first.sector || grupo.find(r => r.sector)?.sector || "General";
+    const sec = first.sector || grupo.find(r => r.sector)?.sector || asoMap[cuil]?.sector || "General";
     const nro = asoMap[cuil]?.nro_asociado || first.nro_legajo || "S/D";
 
     // Python: drop_duplicates(subset='Liquidación') para evitar duplicar haberes
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
         // Logo: lado derecho, no afecta el flujo de texto (igual que en Python: x=160, w=35 sobre A4 210mm)
         if (logoImg) {
-          const logoDims = logoImg.scaleToFit(60, 28);
+          const logoDims = logoImg.scaleToFit(85, 40);
           page.drawImage(logoImg, {
             x: 585 - logoDims.width,
             y: baseY - logoDims.height,

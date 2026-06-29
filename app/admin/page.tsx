@@ -122,6 +122,11 @@ export default function AdminPage() {
   const [repFechaHasta, setRepFechaHasta] = useState("");
   const [repCuil, setRepCuil] = useState("");
   const [repSector, setRepSector] = useState("");
+  const [repLiqCuil, setRepLiqCuil] = useState("");
+  const [repLiqPeriodos, setRepLiqPeriodos] = useState<string[]>([]);
+  const [repLiqPeriodo, setRepLiqPeriodo] = useState("");
+  const [repLiqRows, setRepLiqRows] = useState<{ descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string }[]>([]);
+  const [repLiqLoading, setRepLiqLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
@@ -441,6 +446,19 @@ export default function AdminPage() {
                   }}>🔢 Cargar Números de Asociado</Btn>
                 </Card>
                 <Card>
+                  <h3 className="font-bold text-[#1e293b] mb-2">📞 Agregar Característica 381 a Teléfonos</h3>
+                  <p className="text-sm text-gray-500 mb-4">Agrega el prefijo <b>381</b> al inicio de todos los números de teléfono que no lo tengan (código de área de Tucumán). Solo modifica los que aún no tienen la característica.</p>
+                  <Btn variant="secondary" onClick={async () => {
+                    try {
+                      const r = await fetch("/api/fix-telefonos", { method: "POST" });
+                      const d = await r.json();
+                      if (!r.ok) { setMsg({ text: `Error: ${d.error || r.status}`, ok: false }); return; }
+                      setMsg({ text: `✅ ${d.ok}/${d.total} teléfonos actualizados con 381.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                      loadBase();
+                    } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
+                  }}>📞 Agregar 381 a Teléfonos</Btn>
+                </Card>
+                <Card>
                   <h3 className="font-bold text-[#1e293b] mb-2">👤 Crear Accesos al Portal de Asociados</h3>
                   <p className="text-sm text-gray-500 mb-4">Crea un usuario de acceso para cada asociado del maestro. El usuario es el CUIL y la clave inicial es el número de DNI. Los asociados verán un aviso para cambiarla al ingresar.</p>
                   <Btn variant="secondary" onClick={async () => {
@@ -719,6 +737,86 @@ export default function AdminPage() {
                   </div>
                 </Card>
               ))}
+            </div>
+
+            {/* Reporte de liquidación por asociado */}
+            <div className="mt-6">
+              <h3 className="font-bold text-[#1e293b] mb-3">📋 Liquidación por Asociado</h3>
+              <Card>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <Label>Asociado</Label>
+                    <Select value={repLiqCuil} onChange={async e => {
+                      const cuil = e.target.value;
+                      setRepLiqCuil(cuil);
+                      setRepLiqRows([]);
+                      setRepLiqPeriodo("");
+                      if (!cuil) { setRepLiqPeriodos([]); return; }
+                      const r = await fetch(`/api/liquidaciones?cuil=${cuil}`);
+                      const ps: string[] = await r.json();
+                      setRepLiqPeriodos(ps);
+                      if (ps.length) setRepLiqPeriodo(ps[0]);
+                    }}>
+                      <option value="">— Seleccionar —</option>
+                      {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Período</Label>
+                    <Select value={repLiqPeriodo} onChange={e => setRepLiqPeriodo(e.target.value)} disabled={!repLiqPeriodos.length}>
+                      <option value="">— Seleccionar —</option>
+                      {repLiqPeriodos.map(p => <option key={p}>{p}</option>)}
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Btn disabled={!repLiqCuil || !repLiqPeriodo || repLiqLoading} onClick={async () => {
+                      setRepLiqLoading(true);
+                      const r = await fetch(`/api/liquidaciones?cuil=${repLiqCuil}&periodo=${encodeURIComponent(repLiqPeriodo)}`);
+                      setRepLiqRows(await r.json());
+                      setRepLiqLoading(false);
+                    }}>{repLiqLoading ? "Buscando..." : "🔍 Ver detalle"}</Btn>
+                  </div>
+                </div>
+
+                {repLiqRows.length > 0 && (() => {
+                  const tiposValidos = ["Remunerativo", "No Remunerativo", "Retención", "Redondeo"];
+                  const detalle = repLiqRows.filter(r => tiposValidos.includes(r.tipo_concepto));
+                  const neto = repLiqRows[0]?.neto || detalle.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
+                  const aso = asociados.find(a => a.cuil === repLiqCuil);
+                  return (
+                    <div>
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-3 p-3 bg-gray-50 rounded-lg">
+                        <span><span className="font-medium">Asociado:</span> {aso?.nombre_completo}</span>
+                        <span><span className="font-medium">Sector:</span> {repLiqRows[0]?.sector}</span>
+                        <span><span className="font-medium">Categoría:</span> {repLiqRows[0]?.categoria}</span>
+                        {repLiqRows[0]?.jornal_basico ? <span><span className="font-medium">Jornal básico:</span> ${fmt(repLiqRows[0].jornal_basico)}</span> : null}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 text-gray-600">
+                            <tr><th className="text-left px-4 py-2">Concepto</th><th className="text-left px-4 py-2">Tipo</th><th className="px-4 py-2 text-center">Cant.</th><th className="text-right px-4 py-2">Importe ($)</th></tr>
+                          </thead>
+                          <tbody>
+                            {detalle.map((r, i) => (
+                              <tr key={i} className="border-t border-gray-100">
+                                <td className="px-4 py-1.5">{r.descripcion}</td>
+                                <td className="px-4 py-1.5 text-gray-500 text-xs">{r.tipo_concepto}</td>
+                                <td className="px-4 py-1.5 text-center">{r.cantidad || ""}</td>
+                                <td className={`px-4 py-1.5 text-right font-mono ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
+                                  {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-3 text-right font-bold text-lg text-[#1e293b]">
+                        NETO: $ {fmt(neto)}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </Card>
             </div>
           </div>
         )}
