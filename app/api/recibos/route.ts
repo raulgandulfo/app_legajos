@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const { periodos, titulo, fecha } = await req.json();
 
   const { data: rows } = await supabase
-    .from("liquidaciones").select("*").in("periodo", periodos);
+    .from("liquidaciones").select("*").in("periodo", periodos).limit(100000);
 
   if (!rows?.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
 
@@ -137,10 +137,15 @@ export async function POST(req: NextRequest) {
           y -= size + 3;
         };
 
+        // Logo: lado derecho, no afecta el flujo de texto (igual que en Python: x=160, w=35 sobre A4 210mm)
         if (logoImg) {
-          const logoDims = logoImg.scaleToFit(80, 30);
-          page.drawImage(logoImg, { x: 10, y: y - logoDims.height + 2, width: logoDims.width, height: logoDims.height });
-          y -= logoDims.height + 2;
+          const logoDims = logoImg.scaleToFit(99, 45);
+          page.drawImage(logoImg, {
+            x: 585 - logoDims.width,
+            y: baseY - logoDims.height,
+            width: logoDims.width,
+            height: logoDims.height,
+          });
         }
         line("COOPERATIVA DE TRABAJO DE SERVICIOS AGROINDUSTRIALES LTDA.", 11, true);
         line("Mano de obra asociados (RT 24) / Retornos (Ley 20.337)", 9);
@@ -151,7 +156,7 @@ export async function POST(req: NextRequest) {
         line(`Categoria funcional: ${sp(r.cat)}`);
         line(`Sector: ${sp(r.sec)} | Periodo: ${sp(titulo)}`);
         y -= 4;
-        line(`Puntos: ${r.puntos.toFixed(2)} | Valor punto: $${fmt(r.vPunto)} | Total: $${fmt(r.total)}`, 10, true);
+        line(`Puntos obtenidos: ${Math.round(r.puntos)} | Valor del punto: $${fmt(r.vPunto)} | Total a cobrar: $${fmt(r.total)}`, 10, true);
         y -= 2;
 
         if (r.descuentos.length > 0) {

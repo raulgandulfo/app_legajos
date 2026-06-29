@@ -2,21 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
-// Normaliza: quita tildes, reemplaza U+FFFD, minúsculas, sin espacios extra
-function norm(s: string): string {
+const REPL = '�'; // U+FFFD: carácter de reemplazo que produce SheetJS para bytes no decodificables
+
+// Normaliza sin quitar el carácter de reemplazo (se trata en keyMatchesAlias)
+function normBase(s: string): string {
   return String(s || "")
-    .replace(/�/g, "")
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .toLowerCase().trim();
 }
 
+// Compara clave de columna (puede tener � donde había vocales acentuadas)
+// con alias. � en la clave actúa como wildcard de una letra.
+function keyMatchesAlias(key: string, alias: string): boolean {
+  const normKey = normBase(key);
+  const normAlias = normBase(alias);
+  if (normKey === normAlias) return true;
+  if (!normKey.includes(REPL)) return false;
+  const escaped = normKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = escaped.split(REPL).join('[a-z]');
+  try { return new RegExp(`^${pattern}$`).test(normAlias); } catch { return false; }
+}
+
 function getCell(row: Record<string, unknown>, aliases: string[]): string {
-  const normAliases = aliases.map(norm);
   for (const [key, v] of Object.entries(row)) {
-    if (normAliases.includes(norm(key))) {
-      if (v !== null && v !== undefined && String(v).trim() !== "" && String(v) !== "nan") {
-        return String(v).trim();
-      }
+    const matched = aliases.some(alias => keyMatchesAlias(key, alias));
+    if (matched && v !== null && v !== undefined && String(v).trim() !== "" && String(v) !== "nan") {
+      return String(v).trim();
     }
   }
   return "";
