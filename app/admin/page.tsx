@@ -65,7 +65,7 @@ export default function AdminPage() {
   const [editAso, setEditAso] = useState<Asociado | null>(null);
   const [asoForm, setAsoForm] = useState<Partial<Asociado>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [sobreescribir, setSobreescribir] = useState(false);
+  const [sobreescribir, setSobreescribir] = useState(true);
   const [importing, setImporting] = useState(false);
 
   // --- Préstamos ---
@@ -210,7 +210,7 @@ export default function AdminPage() {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
     const filas = rows.map(r => ({
-      cuil: String(r["CUIL"] || "").trim(),
+      cuil: String(r["CUIL"] || "").replace(/-/g, "").replace(/\s/g, "").trim(),
       periodo: liqPeriodo,
       nro_legajo: String(r["Nro. de Legajo"] || r["Nro. Legajo"] || "").trim() || null,
       nombre_completo: String(r["Apellido y Nombre"] || "").trim() || null,
@@ -423,19 +423,25 @@ export default function AdminPage() {
                   <h3 className="font-bold text-[#1e293b] mb-2">🔢 Cargar Números de Asociado</h3>
                   <p className="text-sm text-gray-500 mb-4">Actualiza el número de legajo (nro_asociado) de cada asociado usando el archivo asociados.json (CUIL → número).</p>
                   <Btn variant="secondary" onClick={async () => {
-                    const r = await fetch("/api/import-nros", { method: "POST" });
-                    const d = await r.json();
-                    setMsg({ text: `✅ ${d.ok}/${d.total} números actualizados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
-                    loadBase();
+                    try {
+                      const r = await fetch("/api/import-nros", { method: "POST" });
+                      const d = await r.json();
+                      if (!r.ok) { setMsg({ text: `Error: ${d.error || r.status}`, ok: false }); return; }
+                      setMsg({ text: `✅ ${d.ok}/${d.total} números actualizados.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                      loadBase();
+                    } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
                   }}>🔢 Cargar Números de Asociado</Btn>
                 </Card>
                 <Card>
                   <h3 className="font-bold text-[#1e293b] mb-2">👤 Crear Accesos al Portal de Asociados</h3>
                   <p className="text-sm text-gray-500 mb-4">Crea un usuario de acceso para cada asociado del maestro. El usuario es el CUIL y la clave inicial es el número de DNI. Los asociados verán un aviso para cambiarla al ingresar.</p>
                   <Btn variant="secondary" onClick={async () => {
-                    const r = await fetch("/api/import-usuarios", { method: "POST" });
-                    const d = await r.json();
-                    setMsg({ text: `✅ ${d.ok}/${d.total} accesos creados.${d.sinDni ? ` (${d.sinDni} sin DNI cargado)` : ""}${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                    try {
+                      const r = await fetch("/api/import-usuarios", { method: "POST" });
+                      const d = await r.json();
+                      if (!r.ok) { setMsg({ text: `Error: ${d.error || r.status}`, ok: false }); return; }
+                      setMsg({ text: `✅ ${d.ok}/${d.total} accesos creados.${d.sinDni ? ` (${d.sinDni} sin DNI cargado)` : ""}${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                    } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
                   }}>👤 Crear Accesos (clave = DNI)</Btn>
                 </Card>
               </div>

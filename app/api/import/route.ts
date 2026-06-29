@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     domicilio:      ["Calle", "Domicilio", "domicilio", "Dirección", "Direccion", "Domicilio Particular"],
     localidad:      ["Localidad", "localidad", "Ciudad"],
     provincia:      ["Provincia", "provincia"],
-    telefono:       ["Teléfono Movil", "Telefono Movil", "Teléfono movil", "Telefono movil", "Tel. Movil", "Tel.Movil", "Teléfono Celular", "Celular", "Movil", "Teléfono fijo", "Telefono fijo", "Telefono fijo", "Teléfono", "Telefono", "telefono", "Tel."],
+    telefono:       ["Teléfono móvil", "Telefono movil", "Teléfono Movil", "Telefono Movil", "Teléfono movil", "Tel. Movil", "Tel.Movil", "Teléfono Celular", "Celular", "Movil", "Móvil", "Teléfono fijo", "Telefono fijo", "Teléfono", "Telefono", "telefono", "Tel."],
     sector:         ["Sector", "sector", "Sección", "Seccion", "Area", "Área"],
     categoria:      ["Categoría funcional", "Categoria funcional", "Categoría", "Categoria", "categoria", "Categ.", "Cat."],
     fecha_ingreso:  ["Fecha de alta", "Fecha Alta", "Fecha Ingreso", "Fecha de Ingreso", "fecha_ingreso"],

@@ -23,6 +23,7 @@ interface LiqRow {
   haberes_no_rem?: number;
   retenciones?: number;
   neto?: number;
+  periodo?: string;
 }
 
 interface AsoMap {
@@ -79,28 +80,28 @@ export async function POST(req: NextRequest) {
     const nombre = first.nombre_completo || asoMap[cuil]?.nombre_completo || cuil;
     const cat = first.categoria || grupo.find(r => r.categoria)?.categoria || "";
     const sec = first.sector || grupo.find(r => r.sector)?.sector || "General";
-    const nro = first.nro_legajo || asoMap[cuil]?.nro_asociado || "S/D";
+    const nro = asoMap[cuil]?.nro_asociado || first.nro_legajo || "S/D";
 
-    // buscar el mayor valor de haberes entre todas las filas del empleado
-    const maxHabRem = safeMax(grupo.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
-    const maxJornal = safeMax(grupo.map(r => r.jornal_basico || 0));
+    // Python: drop_duplicates(subset='Liquidación') para evitar duplicar haberes
+    // Tomamos el max de haberes_rem+haberes_no_rem (repetido en cada fila, pero único por período)
+    const totalHaberes = safeMax(grupo.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
     const maxNeto = safeMax(grupo.map(r => r.neto || 0));
-    const totalHaberes = maxHabRem > 0 ? maxHabRem : maxJornal > 0 ? maxJornal : maxNeto;
 
+    // PUNTOS: fila con descripcion que contenga "PUNTOS" y tipo "Puente"
     const puntosRows = grupo.filter(r => (r.descripcion || "").toUpperCase().includes("PUNTO"));
     const puntos = puntosRows.reduce((s, r) => s + (r.importe || 0), 0);
-    const vPunto = puntos > 0 && totalHaberes > 0 ? Math.round((totalHaberes / puntos) * 100) / 100 : 0;
+    // Python: int(total_haberes / puntos)
+    const vPunto = puntos > 0 && totalHaberes > 0 ? Math.floor(totalHaberes / puntos) : 0;
 
-    // retenciones: buscar filas con tipo_concepto de retención o importe negativo
+    // Retenciones: filas con tipo_concepto = "Retención" tienen el monto en 'retenciones'
     const descRows = grupo.filter(r =>
-      (r.retenciones || 0) > 0 ||
-      String(r.descripcion || "").toUpperCase().includes("DESCUENTO") ||
-      String(r.descripcion || "").toUpperCase().includes("RETENCIÓN") ||
-      String(r.descripcion || "").toUpperCase().includes("RETENCION")
+      (r.tipo_concepto || "").toLowerCase().includes("retenci") ||
+      (r.retenciones || 0) > 0
     );
-    const maxRet = safeMax(grupo.map(r => r.retenciones || 0));
-    const totalDesc = maxRet > 0 ? maxRet : descRows.reduce((s, r) => s + (r.retenciones || 0), 0);
-    const descuentos = descRows.filter(r => (r.retenciones || 0) > 0).map(r => ({ desc: r.descripcion || "", monto: r.retenciones || 0 }));
+    const totalDesc = descRows.reduce((s, r) => s + (r.retenciones || 0), 0);
+    const descuentos = descRows
+      .filter(r => (r.retenciones || 0) > 0)
+      .map(r => ({ desc: sp(r.descripcion || ""), monto: r.retenciones || 0 }));
 
     const netoFinal = maxNeto > 0 ? maxNeto : totalHaberes - totalDesc;
 
