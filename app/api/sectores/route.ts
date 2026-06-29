@@ -10,6 +10,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { nombre } = await req.json();
+  // Ignorar si ya existe (upsert por nombre, o insert silencioso)
+  const { data: existe } = await supabase.from("sectores").select("id").eq("nombre", nombre.trim()).single();
+  if (existe) return NextResponse.json({ ok: true });
   const { error } = await supabase.from("sectores").insert({ nombre: nombre.trim() });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface Session { username: string; rol: string; cuil: string; }
-interface LiqRow { descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; sector?: string; categoria?: string; }
+interface LiqRow { descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; sector?: string; categoria?: string; jornal_basico?: number; }
 interface Prestamo { id: number; fecha_otorgamiento: string; monto_total: number; cantidad_cuotas: number; prestamos_cuotas?: Cuota[]; }
 interface Cuota { id: number; numero_cuota: number; monto_cuota: number; fecha_vencimiento: string; estado: string; }
 interface Sancion { id: number; tipo: string; fecha_desde: string; fecha_hasta: string; motivo: string; }
@@ -176,20 +176,20 @@ export default function AsociadoPage() {
   const neto = liqRows[0]?.neto || detalle.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
 
   return (
-    <div className="min-h-screen bg-[#eef2f7] flex">
-      <aside className="w-64 bg-[#1e293b] text-[#e2e8f0] flex flex-col p-4 min-h-screen">
-        <div className="mb-6">
-          <div className="font-bold text-lg">👤 {nombre.split(" ")[0]}</div>
-          <div className="text-xs opacity-60">CUIL: {session.cuil}</div>
+    <div className="min-h-screen bg-[#eef2f7] flex flex-col md:flex-row">
+      <aside className="bg-[#1e293b] text-[#e2e8f0] flex flex-row md:flex-col p-3 md:p-4 md:w-64 md:min-h-screen items-center md:items-stretch gap-3 md:gap-0">
+        <div className="flex-1 md:mb-6 min-w-0">
+          <div className="font-bold text-sm md:text-lg truncate">👤 {nombre}</div>
+          <div className="text-xs opacity-60 hidden md:block">CUIL: {session.cuil}</div>
         </div>
-        <hr className="border-[#334155] mb-4" />
-        <button onClick={logout} className="bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-medium w-full mt-auto">Cerrar Sesión</button>
+        <hr className="hidden md:block border-[#334155] mb-4" />
+        <button onClick={logout} className="bg-red-500 hover:bg-red-600 text-white py-1.5 md:py-2 px-3 md:w-full rounded-lg text-xs md:text-sm font-medium md:mt-auto whitespace-nowrap">Cerrar Sesión</button>
       </aside>
 
-      <main className="flex-1 p-6">
-        <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white px-6 py-4 rounded-xl mb-4">
-          <div className="text-lg font-bold">Bienvenido/a, {nombre.split(" ")[0]}</div>
-          <div className="text-sm opacity-60">Portal del Asociado · CUIL {session.cuil}</div>
+      <main className="flex-1 p-3 md:p-6 min-w-0">
+        <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white px-4 md:px-6 py-3 md:py-4 rounded-xl mb-4">
+          <div className="text-base md:text-lg font-bold">Bienvenido/a, {nombre}</div>
+          <div className="text-xs md:text-sm opacity-60">Portal del Asociado · CUIL {session.cuil}</div>
         </div>
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-4">
           <span>🔑 Si es tu primer ingreso, tu clave inicial es tu número de DNI. Te recomendamos cambiarla.</span>
@@ -212,18 +212,26 @@ export default function AsociadoPage() {
                 <select className="mb-4 px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => setPeriodoSel(e.target.value)}>
                   {periodos.map(p => <option key={p}>{p}</option>)}
                 </select>
-                {liqRows[0] && <Card><span className="font-medium">Sector:</span> {liqRows[0].sector} &nbsp;|&nbsp; <span className="font-medium">Categoría:</span> {liqRows[0].categoria}</Card>}
+                {liqRows[0] && (
+                  <Card>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      <span><span className="font-medium">Sector:</span> {liqRows[0].sector}</span>
+                      <span><span className="font-medium">Categoría:</span> {liqRows[0].categoria}</span>
+                      {liqRows[0].jornal_basico ? <span><span className="font-medium">Jornal básico:</span> ${fmt(liqRows[0].jornal_basico)}</span> : null}
+                    </div>
+                  </Card>
+                )}
                 <h3 className="font-semibold text-[#1e293b] mb-3">Detalle de la Liquidación</h3>
-                <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto bg-white rounded-xl shadow mb-4">
+                  <table className="w-full text-sm min-w-[360px]">
                     <thead className="bg-gray-50 text-gray-600">
-                      <tr><th className="text-left px-4 py-3">Concepto</th><th className="px-4 py-3">Cantidad</th><th className="text-right px-4 py-3">Importe ($)</th></tr>
+                      <tr><th className="text-left px-4 py-3">Concepto</th><th className="px-3 py-3 text-center">Cant.</th><th className="text-right px-4 py-3">Importe ($)</th></tr>
                     </thead>
                     <tbody>
                       {detalle.map((r, i) => (
                         <tr key={i} className="border-t border-gray-100">
                           <td className="px-4 py-2">{r.descripcion}</td>
-                          <td className="px-4 py-2 text-center">{r.cantidad}</td>
+                          <td className="px-3 py-2 text-center">{r.cantidad || ""}</td>
                           <td className={`px-4 py-2 text-right ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
                             {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
                           </td>

@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
 
         // Logo: lado derecho, no afecta el flujo de texto (igual que en Python: x=160, w=35 sobre A4 210mm)
         if (logoImg) {
-          const logoDims = logoImg.scaleToFit(99, 45);
+          const logoDims = logoImg.scaleToFit(60, 28);
           page.drawImage(logoImg, {
             x: 585 - logoDims.width,
             y: baseY - logoDims.height,

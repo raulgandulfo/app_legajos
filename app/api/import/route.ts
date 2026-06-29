@@ -23,11 +23,15 @@ function keyMatchesAlias(key: string, alias: string): boolean {
   try { return new RegExp(`^${pattern}$`).test(normAlias); } catch { return false; }
 }
 
+function sanitize(s: string): string {
+  return s.replace(/�/g, "?");
+}
+
 function getCell(row: Record<string, unknown>, aliases: string[]): string {
   for (const [key, v] of Object.entries(row)) {
     const matched = aliases.some(alias => keyMatchesAlias(key, alias));
     if (matched && v !== null && v !== undefined && String(v).trim() !== "" && String(v) !== "nan") {
-      return String(v).trim();
+      return sanitize(String(v).trim());
     }
   }
   return "";
@@ -59,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
 
   const bytes = await file.arrayBuffer();
-  const workbook = XLSX.read(bytes, { type: "array", raw: true });
+  const workbook = XLSX.read(bytes, { type: "array", raw: true, codepage: 1252 });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
 

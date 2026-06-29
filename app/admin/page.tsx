@@ -206,7 +206,7 @@ export default function AdminPage() {
     setLiqCargando(true);
     const XLSX = await import("xlsx");
     const buf = await liqFile.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array", raw: false });
+    const wb = XLSX.read(buf, { type: "array", raw: false, codepage: 1252 });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
     const filas = rows.map(r => ({
@@ -227,10 +227,18 @@ export default function AdminPage() {
       retenciones: parseArgNum(r["Retenciones"] ?? r["Total Retenciones"]),
     })).filter(f => f.cuil && f.cuil !== "null");
     await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas }) });
+
+    // Auto-crear sectores únicos encontrados en la liquidación
+    const sectoresNuevos = [...new Set(filas.map(f => f.sector).filter(Boolean) as string[])];
+    for (const nombre of sectoresNuevos) {
+      await fetch("/api/sectores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre }) });
+    }
+
     const cols = rows.length ? Object.keys(rows[0]).join(", ") : "";
     setMsg({ text: `✅ ${filas.length} registros cargados para ${liqPeriodo}. Columnas: ${cols}`, ok: true });
     setLiqFile(null); setLiqPeriodo("");
     fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos);
+    fetch("/api/sectores").then(r => r.json()).then(setSectores);
     setLiqCargando(false);
   }
 
