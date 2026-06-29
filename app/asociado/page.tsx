@@ -187,9 +187,13 @@ export default function AsociadoPage() {
       </aside>
 
       <main className="flex-1 p-6">
-        <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white px-6 py-4 rounded-xl mb-6">
+        <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white px-6 py-4 rounded-xl mb-4">
           <div className="text-lg font-bold">Bienvenido/a, {nombre.split(" ")[0]}</div>
           <div className="text-sm opacity-60">Portal del Asociado · CUIL {session.cuil}</div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-4">
+          <span>🔑 Si es tu primer ingreso, tu clave inicial es tu número de DNI. Te recomendamos cambiarla.</span>
+          <button onClick={() => setActiveTab("cuenta")} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap">Cambiar clave</button>
         </div>
 
         <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 overflow-x-auto">
