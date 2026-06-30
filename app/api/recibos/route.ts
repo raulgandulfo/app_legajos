@@ -51,13 +51,48 @@ function sp(s: string): string {
   });
 }
 
+export async function GET(req: NextRequest) {
+  // Endpoint de diagnóstico: /api/recibos?debug=1&periodos=junio+2026
+  const supabase = getSupabase();
+  const { searchParams } = new URL(req.url);
+  const periodos = (searchParams.get("periodos") || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (!periodos.length) return NextResponse.json({ error: "Parámetro periodos requerido" }, { status: 400 });
+
+  const { data: rows, error } = await supabase
+    .from("liquidaciones").select("cuil, sector, nombre_completo, haberes_rem, neto").in("periodo", periodos).limit(100000);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const byCuil: Record<string, { sector: string; nombre: string; neto: number }> = {};
+  for (const r of (rows || [])) {
+    const cuil = String(r.cuil || "").replace(/-/g, "").trim();
+    if (!cuil) continue;
+    if (!byCuil[cuil]) byCuil[cuil] = { sector: r.sector || "General", nombre: r.nombre_completo || cuil, neto: r.neto || 0 };
+    if (r.neto > byCuil[cuil].neto) byCuil[cuil].neto = r.neto;
+  }
+
+  const resumen: Record<string, { cuil: string; nombre: string; neto: number }[]> = {};
+  for (const [cuil, d] of Object.entries(byCuil)) {
+    const sec = d.sector;
+    if (!resumen[sec]) resumen[sec] = [];
+    resumen[sec].push({ cuil, nombre: d.nombre, neto: d.neto });
+  }
+
+  return NextResponse.json({
+    total_filas: rows?.length,
+    total_cuils: Object.keys(byCuil).length,
+    por_sector: Object.fromEntries(Object.entries(resumen).map(([s, arr]) => [s, { cantidad: arr.length, personas: arr }]))
+  });
+}
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { periodos, titulo, fecha } = await req.json();
 
-  const { data: rows } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from("liquidaciones").select("*").in("periodo", periodos).limit(100000);
 
+  if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 });
   if (!rows?.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
 
   try {
