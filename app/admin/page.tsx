@@ -492,7 +492,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <AsoSearch asociados={asociados} value={preCuil} onChange={setPreCuil} />
                   <div><Label>Fecha de otorgamiento</Label><Input type="date" value={preFecha} onChange={e => setPreFecha(e.target.value)} /></div>
-                  <div><Label>Monto Total ($)</Label><Input type="number" value={preMonto} onChange={e => setPreMonto(Number(e.target.value))} /></div>
+                  <div><Label>Monto Total ($)</Label><Input type="text" inputMode="numeric" value={preMonto === 0 ? "" : preMonto.toLocaleString("es-AR")} onChange={e => { const raw = e.target.value.replace(/\./g, "").replace(/,/g, ""); const n = parseInt(raw, 10); setPreMonto(isNaN(n) ? 0 : n); }} placeholder="0" /></div>
                   <div><Label>Cantidad de cuotas</Label><Input type="number" min={1} max={60} value={preCuotas} onChange={e => setPreCuotas(Number(e.target.value))} /></div>
                 </div>
                 {preMonto > 0 && <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm mb-4">💡 Monto por cuota: <b>${fmt(Math.round(preMonto / preCuotas * 100) / 100)}</b></div>}
