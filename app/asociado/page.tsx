@@ -172,7 +172,7 @@ export default function AsociadoPage() {
   ];
 
   const tiposValidos = ["Remunerativo", "No Remunerativo", "Retención", "Redondeo"];
-  const detalle = liqRows.filter(r => tiposValidos.includes(r.tipo_concepto));
+  const detalle = liqRows.filter(r => tiposValidos.includes(r.tipo_concepto)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, "es"));
   const neto = liqRows[0]?.neto || detalle.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
 
   return (

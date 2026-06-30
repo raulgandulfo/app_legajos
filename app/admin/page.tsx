@@ -214,22 +214,30 @@ export default function AdminPage() {
     const wb = XLSX.read(buf, { type: "array", raw: false, codepage: 1252 });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+    // Helper para buscar valor por múltiples nombres de columna posibles
+    function col(r: Record<string, unknown>, ...keys: string[]): unknown {
+      for (const k of keys) {
+        if (r[k] !== null && r[k] !== undefined) return r[k];
+      }
+      return null;
+    }
+
     const filas = rows.map(r => ({
       cuil: String(r["CUIL"] || "").replace(/-/g, "").replace(/\s/g, "").trim(),
       periodo: liqPeriodo,
-      nro_legajo: String(r["Nro. de Legajo"] || r["Nro. Legajo"] || "").trim() || null,
-      nombre_completo: String(r["Apellido y Nombre"] || "").trim() || null,
-      descripcion: String(r["Descripción Concepto"] || "").trim(),
-      tipo_concepto: String(r["Tipo de Concepto"] || "").trim(),
-      cantidad: parseArgNum(r["Cantidad"]),
-      importe: parseArgNum(r["Importe Calc"] ?? r["Importe"]),
-      sector: String(r["Sector"] || "").trim() || null,
-      categoria: String(r["Categoría"] || "").trim() || null,
-      jornal_basico: parseArgNum(r["Jornal / Básico"] ?? r["Jornal/Básico"]),
-      neto: parseArgNum(r["NETO"] ?? r["Neto"]),
-      haberes_rem: parseArgNum(r["Haberes remunerativos"]),
-      haberes_no_rem: parseArgNum(r["Haberes No remunerativos"]),
-      retenciones: parseArgNum(r["Retenciones"] ?? r["Total Retenciones"]),
+      nro_legajo: String(col(r, "Nro. de Legajo", "Nro. Legajo", "Nro Legajo", "Legajo") || "").trim() || null,
+      nombre_completo: String(col(r, "Apellido y Nombre", "Nombre y Apellido", "Nombre Completo", "Nombre") || "").trim() || null,
+      descripcion: String(col(r, "Descripción Concepto", "Descripcion Concepto", "Descripción", "Descripcion", "Concepto") || "").trim(),
+      tipo_concepto: String(col(r, "Tipo de Concepto", "Tipo Concepto", "Tipo") || "").trim(),
+      cantidad: parseArgNum(col(r, "Cantidad", "Cant.", "Cant", "Unidades", "Hs.", "Horas")),
+      importe: parseArgNum(col(r, "Importe Calc", "Importe Calculado", "Importe", "Monto")),
+      sector: String(col(r, "Sector", "Sección", "Seccion", "Area", "Área") || "").trim() || null,
+      categoria: String(col(r, "Categoría", "Categoria", "Cat.", "Categ.") || "").trim() || null,
+      jornal_basico: parseArgNum(col(r, "Jornal / Básico", "Jornal/Básico", "Jornal/Basico", "Jornal Básico", "Jornal Basico", "Jornal")),
+      neto: parseArgNum(col(r, "NETO", "Neto", "Neto a Cobrar")),
+      haberes_rem: parseArgNum(col(r, "Haberes remunerativos", "Haberes Remunerativos", "Total Remunerativos")),
+      haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
+      retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
     })).filter(f => f.cuil && f.cuil !== "null");
     await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas }) });
 
@@ -444,19 +452,6 @@ export default function AdminPage() {
                       loadBase();
                     } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
                   }}>🔢 Cargar Números de Asociado</Btn>
-                </Card>
-                <Card>
-                  <h3 className="font-bold text-[#1e293b] mb-2">📞 Agregar Característica 381 a Teléfonos</h3>
-                  <p className="text-sm text-gray-500 mb-4">Agrega el prefijo <b>381</b> al inicio de todos los números de teléfono que no lo tengan (código de área de Tucumán). Solo modifica los que aún no tienen la característica.</p>
-                  <Btn variant="secondary" onClick={async () => {
-                    try {
-                      const r = await fetch("/api/fix-telefonos", { method: "POST" });
-                      const d = await r.json();
-                      if (!r.ok) { setMsg({ text: `Error: ${d.error || r.status}`, ok: false }); return; }
-                      setMsg({ text: `✅ ${d.ok}/${d.total} teléfonos actualizados con 381.${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
-                      loadBase();
-                    } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
-                  }}>📞 Agregar 381 a Teléfonos</Btn>
                 </Card>
                 <Card>
                   <h3 className="font-bold text-[#1e293b] mb-2">👤 Crear Accesos al Portal de Asociados</h3>
@@ -780,7 +775,7 @@ export default function AdminPage() {
 
                 {repLiqRows.length > 0 && (() => {
                   const tiposValidos = ["Remunerativo", "No Remunerativo", "Retención", "Redondeo"];
-                  const detalle = repLiqRows.filter(r => tiposValidos.includes(r.tipo_concepto));
+                  const detalle = repLiqRows.filter(r => tiposValidos.includes(r.tipo_concepto)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, "es"));
                   const neto = repLiqRows[0]?.neto || detalle.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
                   const aso = asociados.find(a => a.cuil === repLiqCuil);
                   return (
