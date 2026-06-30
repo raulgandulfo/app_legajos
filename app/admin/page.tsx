@@ -746,9 +746,7 @@ export default function AdminPage() {
               <Card>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <Label>Asociado</Label>
-                    <Select value={repLiqCuil} onChange={async e => {
-                      const cuil = e.target.value;
+                    <AsoSearch asociados={asociados} value={repLiqCuil} onChange={async cuil => {
                       setRepLiqCuil(cuil);
                       setRepLiqRows([]);
                       setRepLiqPeriodo("");
@@ -757,10 +755,7 @@ export default function AdminPage() {
                       const ps: string[] = await r.json();
                       setRepLiqPeriodos(ps);
                       if (ps.length) setRepLiqPeriodo(ps[0]);
-                    }}>
-                      <option value="">— Seleccionar —</option>
-                      {asociados.map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
-                    </Select>
+                    }} label="Asociado" />
                   </div>
                   <div>
                     <Label>Período</Label>
@@ -795,13 +790,12 @@ export default function AdminPage() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 text-gray-600">
-                            <tr><th className="text-left px-4 py-2">Concepto</th><th className="text-left px-4 py-2">Tipo</th><th className="px-4 py-2 text-center">Cant.</th><th className="text-right px-4 py-2">Importe ($)</th></tr>
+                            <tr><th className="text-left px-4 py-2">Concepto</th><th className="px-4 py-2 text-center">Cant.</th><th className="text-right px-4 py-2">Importe ($)</th></tr>
                           </thead>
                           <tbody>
                             {detalle.map((r, i) => (
                               <tr key={i} className="border-t border-gray-100">
                                 <td className="px-4 py-1.5">{r.descripcion}</td>
-                                <td className="px-4 py-1.5 text-gray-500 text-xs">{r.tipo_concepto}</td>
                                 <td className="px-4 py-1.5 text-center">{r.cantidad || ""}</td>
                                 <td className={`px-4 py-1.5 text-right font-mono ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
                                   {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
