@@ -239,7 +239,13 @@ export default function AdminPage() {
       haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
       retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
     })).filter(f => f.cuil && f.cuil !== "null");
-    await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas }) });
+    const liqRes = await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas, reemplazar: true }) });
+    const liqData = await liqRes.json();
+    if (liqData.errores?.length) {
+      setMsg({ text: `⚠️ ${liqData.insertados}/${filas.length} filas insertadas. Errores: ${liqData.errores.join(" | ")}`, ok: false });
+      setLiqCargando(false);
+      return;
+    }
 
     // Auto-crear sectores únicos encontrados en la liquidación
     const sectoresNuevos = [...new Set(filas.map(f => f.sector).filter(Boolean) as string[])];
@@ -248,7 +254,7 @@ export default function AdminPage() {
     }
 
     const cols = rows.length ? Object.keys(rows[0]).join(", ") : "";
-    setMsg({ text: `✅ ${filas.length} registros cargados para ${liqPeriodo}. Columnas: ${cols}`, ok: true });
+    setMsg({ text: `✅ ${liqData.insertados}/${filas.length} registros insertados para ${liqPeriodo}. Columnas: ${cols}`, ok: true });
     setLiqFile(null); setLiqPeriodo("");
     fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos);
     fetch("/api/sectores").then(r => r.json()).then(setSectores);

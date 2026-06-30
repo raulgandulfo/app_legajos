@@ -10,25 +10,25 @@ export async function GET(req: NextRequest) {
   const listAll = searchParams.get("list");
 
   if (listAll) {
-    const { data } = await supabase.from("liquidaciones").select("periodo");
+    const { data } = await supabase.from("liquidaciones").select("periodo").limit(100000);
     const all = [...new Set((data || []).map((r: { periodo: string }) => r.periodo))].sort().reverse();
     return NextResponse.json(all);
   }
 
   if (cuil && !periodo) {
-    const { data } = await supabase.from("liquidaciones").select("periodo").eq("cuil", cuil);
+    const { data } = await supabase.from("liquidaciones").select("periodo").eq("cuil", cuil).limit(10000);
     const ps = [...new Set((data || []).map((r: { periodo: string }) => r.periodo))].sort().reverse();
     return NextResponse.json(ps);
   }
 
   if (cuil && periodo) {
-    const { data } = await supabase.from("liquidaciones").select("*").eq("cuil", cuil).eq("periodo", periodo);
+    const { data } = await supabase.from("liquidaciones").select("*").eq("cuil", cuil).eq("periodo", periodo).limit(10000);
     return NextResponse.json(data || []);
   }
 
   if (periodos) {
     const arr = periodos.split(",");
-    const { data } = await supabase.from("liquidaciones").select("*").in("periodo", arr);
+    const { data } = await supabase.from("liquidaciones").select("*").in("periodo", arr).limit(100000);
     return NextResponse.json(data || []);
   }
 
@@ -37,9 +37,28 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
-  const { filas } = await req.json();
-  for (let i = 0; i < filas.length; i += 500) {
-    await supabase.from("liquidaciones").insert(filas.slice(i, i + 500));
+  const { filas, reemplazar } = await req.json();
+
+  if (!filas?.length) return NextResponse.json({ count: 0, insertados: 0, errores: [] });
+
+  // Si hay que reemplazar, borrar filas existentes del mismo período
+  if (reemplazar) {
+    const periodo = filas[0].periodo;
+    await supabase.from("liquidaciones").delete().eq("periodo", periodo);
   }
-  return NextResponse.json({ count: filas.length });
+
+  let insertados = 0;
+  const errores: string[] = [];
+
+  for (let i = 0; i < filas.length; i += 500) {
+    const batch = filas.slice(i, i + 500);
+    const { error } = await supabase.from("liquidaciones").insert(batch);
+    if (error) {
+      errores.push(`Batch ${Math.floor(i / 500) + 1}: ${error.message}`);
+    } else {
+      insertados += batch.length;
+    }
+  }
+
+  return NextResponse.json({ count: filas.length, insertados, errores });
 }
