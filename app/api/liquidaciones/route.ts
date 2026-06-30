@@ -10,8 +10,18 @@ export async function GET(req: NextRequest) {
   const listAll = searchParams.get("list");
 
   if (listAll) {
-    const { data } = await supabase.from("liquidaciones").select("periodo").limit(100000);
-    const all = [...new Set((data || []).map((r: { periodo: string }) => r.periodo))].sort().reverse();
+    // Paginar para superar el límite de 1000 filas de PostgREST
+    const PAGE = 1000;
+    let allPeriodos: string[] = [];
+    let from = 0;
+    while (true) {
+      const { data } = await supabase.from("liquidaciones").select("periodo").range(from, from + PAGE - 1);
+      if (!data?.length) break;
+      allPeriodos.push(...data.map((r: { periodo: string }) => r.periodo));
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    const all = [...new Set(allPeriodos)].sort().reverse();
     return NextResponse.json(all);
   }
 

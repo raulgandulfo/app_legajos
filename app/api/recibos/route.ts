@@ -51,6 +51,22 @@ function sp(s: string): string {
   });
 }
 
+// Pagina automáticamente de a 1000 filas — PostgREST tiene max-rows=1000 en Supabase
+async function queryAllRows(supabase: ReturnType<typeof import("@/lib/supabase").getSupabase>, periodos: string[]): Promise<LiqRow[]> {
+  const PAGE = 1000;
+  const all: LiqRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("liquidaciones").select("*").in("periodo", periodos).range(from, from + PAGE - 1);
+    if (error || !data?.length) break;
+    all.push(...(data as LiqRow[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 export async function GET(req: NextRequest) {
   // Endpoint de diagnóstico: /api/recibos?debug=1&periodos=junio+2026
   const supabase = getSupabase();
@@ -58,10 +74,8 @@ export async function GET(req: NextRequest) {
   const periodos = (searchParams.get("periodos") || "").split(",").map(s => s.trim()).filter(Boolean);
   if (!periodos.length) return NextResponse.json({ error: "Parámetro periodos requerido" }, { status: 400 });
 
-  const { data: rows, error } = await supabase
-    .from("liquidaciones").select("cuil, sector, nombre_completo, haberes_rem, neto").in("periodo", periodos).limit(100000);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const rows = await queryAllRows(supabase, periodos);
+  if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 404 });
 
   const byCuil: Record<string, { sector: string; nombre: string; neto: number }> = {};
   for (const r of (rows || [])) {
@@ -89,11 +103,8 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { periodos, titulo, fecha } = await req.json();
 
-  const { data: rows, error: rowsError } = await supabase
-    .from("liquidaciones").select("*").in("periodo", periodos).limit(100000);
-
-  if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 });
-  if (!rows?.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
+  const rows = await queryAllRows(supabase, periodos);
+  if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
 
   try {
 
