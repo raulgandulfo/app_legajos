@@ -35,6 +35,11 @@ function safeMax(arr: number[]): number {
   return filtered.length ? Math.max(...filtered) : 0;
 }
 
+// Normaliza sector para agrupación (sin acentos, mayúsculas) — evita duplicados por variaciones
+function normSec(s: string): string {
+  return (s || "General").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
+}
+
 // pdf-lib usa WinAnsi: elimina caracteres fuera de rango (0xFFFD, etc.)
 function sp(s: string): string {
   return (s || "").replace(/[�Ā-￿]/g, c => {
@@ -63,24 +68,32 @@ export async function POST(req: NextRequest) {
   const asoMap: AsoMap = {};
   (asoData || []).forEach((a: { cuil: string; nombre_completo?: string; nro_asociado?: string; sector?: string }) => { asoMap[a.cuil] = a; });
 
+  // bySector key = sector normalizado; displaySec = nombre para mostrar en PDF
   const bySector: Record<string, {
     cuil: string; nombre: string; cat: string; sec: string; nro: string;
     puntos: number; vPunto: number; total: number; neto: number;
     descuentos: { desc: string; monto: number }[];
   }[]> = {};
+  const sectorDisplay: Record<string, string> = {}; // normKey → nombre original para PDF
 
+  // Normalizar CUILs al agrupar (por si algunos quedaron con guiones en la DB)
   const byCuil: Record<string, LiqRow[]> = {};
   for (const r of rows as LiqRow[]) {
-    if (!byCuil[r.cuil]) byCuil[r.cuil] = [];
-    byCuil[r.cuil].push(r);
+    const cuil = String(r.cuil || "").replace(/-/g, "").replace(/\s/g, "").trim();
+    if (!cuil) continue;
+    if (!byCuil[cuil]) byCuil[cuil] = [];
+    byCuil[cuil].push(r);
   }
 
   for (const [cuil, grupo] of Object.entries(byCuil)) {
     const first = grupo[0];
     const nombre = first.nombre_completo || asoMap[cuil]?.nombre_completo || cuil;
     const cat = first.categoria || grupo.find(r => r.categoria)?.categoria || "";
-    const sec = first.sector || grupo.find(r => r.sector)?.sector || asoMap[cuil]?.sector || "General";
+    const rawSec = first.sector || grupo.find(r => r.sector)?.sector || asoMap[cuil]?.sector || "General";
+    const secKey = normSec(rawSec);
     const nro = asoMap[cuil]?.nro_asociado || first.nro_legajo || "S/D";
+    // Guardar nombre de display del sector (primer valor encontrado)
+    if (!sectorDisplay[secKey]) sectorDisplay[secKey] = rawSec;
 
     // Python: drop_duplicates(subset='Liquidación') para evitar duplicar haberes
     // Tomamos el max de haberes_rem+haberes_no_rem (repetido en cada fila, pero único por período)
@@ -105,8 +118,8 @@ export async function POST(req: NextRequest) {
 
     const netoFinal = maxNeto > 0 ? maxNeto : totalHaberes - totalDesc;
 
-    if (!bySector[sec]) bySector[sec] = [];
-    bySector[sec].push({ cuil, nombre, cat, sec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
+    if (!bySector[secKey]) bySector[secKey] = [];
+    bySector[secKey].push({ cuil, nombre, cat, sec: rawSec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
   }
 
   // Intentar cargar logo desde public/logo.png
@@ -115,7 +128,8 @@ export async function POST(req: NextRequest) {
 
   const zip = new JSZip();
 
-  for (const [sec, recibos] of Object.entries(bySector)) {
+  for (const [secKey, recibos] of Object.entries(bySector)) {
+    const sec = sectorDisplay[secKey] || secKey;
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -139,7 +153,7 @@ export async function POST(req: NextRequest) {
 
         // Logo: lado derecho, no afecta el flujo de texto (igual que en Python: x=160, w=35 sobre A4 210mm)
         if (logoImg) {
-          const logoDims = logoImg.scaleToFit(85, 40);
+          const logoDims = logoImg.scaleToFit(115, 55);
           page.drawImage(logoImg, {
             x: 585 - logoDims.width,
             y: baseY - logoDims.height,
