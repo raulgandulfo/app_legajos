@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     const cuil = String(r.cuil || "").replace(/-/g, "").trim();
     if (!cuil) continue;
     if (!byCuil[cuil]) byCuil[cuil] = { sector: r.sector || "General", nombre: r.nombre_completo || cuil, neto: r.neto || 0 };
-    if (r.neto > byCuil[cuil].neto) byCuil[cuil].neto = r.neto;
+    if ((r.neto ?? 0) > byCuil[cuil].neto) byCuil[cuil].neto = r.neto ?? 0;
   }
 
   const resumen: Record<string, { cuil: string; nombre: string; neto: number }[]> = {};
