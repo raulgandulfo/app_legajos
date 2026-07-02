@@ -15,11 +15,11 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("historial_medico")
       .select("*, maestro_asociados!left(nombre_completo, nro_legajo)")
-      .order("fecha", { ascending: false });
+      .order("fecha_desde", { ascending: false });
 
     if (filtroCuil) query = query.eq("cuil_asociado", filtroCuil);
-    if (desde) query = query.gte("fecha", desde);
-    if (hasta) query = query.lte("fecha", hasta);
+    if (desde) query = query.gte("fecha_desde", desde);
+    if (hasta) query = query.lte("fecha_desde", hasta);
 
     const { data } = await query;
     return NextResponse.json(data || []);
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
   if (cuil) {
     const { data } = await supabase
-      .from("historial_medico").select("*").eq("cuil_asociado", cuil).order("fecha", { ascending: false });
+      .from("historial_medico").select("*").eq("cuil_asociado", cuil).order("fecha_desde", { ascending: false });
     return NextResponse.json(data || []);
   }
 
@@ -36,7 +36,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
-  const { cuil, fecha, motivo } = await req.json();
-  await supabase.from("historial_medico").insert({ cuil_asociado: cuil, fecha, motivo });
+  const { cuil, fecha_desde, fecha_hasta, motivo } = await req.json();
+  await supabase.from("historial_medico").insert({
+    cuil_asociado: cuil,
+    fecha_desde,
+    fecha_hasta: fecha_hasta || fecha_desde,
+    motivo,
+  });
   return NextResponse.json({ ok: true });
 }

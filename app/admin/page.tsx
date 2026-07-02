@@ -8,7 +8,7 @@ interface Sector { id: number; nombre: string; }
 interface Prestamo { id: number; cuil_asociado: string; fecha_otorgamiento: string; monto_total: number; cantidad_cuotas: number; prestamos_cuotas?: Cuota[]; maestro_asociados?: { nombre_completo: string }; }
 interface Cuota { id: number; numero_cuota: number; monto_cuota: number; fecha_vencimiento: string; estado: string; }
 interface Sancion { id: number; cuil_asociado: string; tipo: string; fecha_desde: string; fecha_hasta: string; motivo: string; maestro_asociados?: { nombre_completo: string }; }
-interface AusenciaMedica { id: number; cuil_asociado: string; fecha: string; motivo: string; maestro_asociados?: { nombre_completo: string }; }
+interface AusenciaMedica { id: number; cuil_asociado: string; fecha_desde: string; fecha_hasta: string; motivo: string; maestro_asociados?: { nombre_completo: string }; }
 interface Usuario { id: number; username: string; rol: string; }
 
 function fmt(v: number) { return v.toLocaleString("es-AR", { minimumFractionDigits: 2 }); }
@@ -102,7 +102,8 @@ export default function AdminPage() {
   // --- Inasistencias ---
   const [medTab, setMedTab] = useState("nueva");
   const [medCuil, setMedCuil] = useState("");
-  const [medFecha, setMedFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [medFechaDesde, setMedFechaDesde] = useState(new Date().toISOString().slice(0, 10));
+  const [medFechaHasta, setMedFechaHasta] = useState(new Date().toISOString().slice(0, 10));
   const [medMotivo, setMedMotivo] = useState("");
   const [medHistCuil, setMedHistCuil] = useState("");
   const [medHistorial, setMedHistorial] = useState<AusenciaMedica[]>([]);
@@ -340,7 +341,7 @@ export default function AdminPage() {
     { id: "asociados", label: "👤 Asociados" },
     { id: "prestamos", label: "💰 Préstamos" },
     { id: "sanciones", label: "⚠️ Sanciones" },
-    { id: "inasistencias", label: "🏥 Inasistencias" },
+    { id: "inasistencias", label: "🏥 Inasist. Médica" },
     { id: "reportes", label: "📊 Reportes" },
     { id: "recibos", label: "🖨️ Emitir Recibos" },
     ...(session?.rol === "admin" ? [
@@ -454,11 +455,11 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-white rounded-xl p-5 shadow border border-gray-100">
                     <div className="text-3xl font-bold text-purple-600">{dash.inasistencias30}</div>
-                    <div className="text-sm text-gray-500 mt-1">Inasistencias últimos 30 días</div>
+                    <div className="text-sm text-gray-500 mt-1">Inasistencias médicas últimos 30 días</div>
                   </div>
                 </div>
                 <div className="flex gap-3 flex-wrap">
-                  {([["asociados","👤 Asociados"],["prestamos","💰 Préstamos"],["sanciones","⚠️ Sanciones"],["inasistencias","🏥 Inasistencias"]] as [string,string][]).map(([id,label]) => (
+                  {([["asociados","👤 Asociados"],["prestamos","💰 Préstamos"],["sanciones","⚠️ Sanciones"],["inasistencias","🏥 Inasist. Médica"]] as [string,string][]).map(([id,label]) => (
                     <button key={id} onClick={() => setSeccion(id)}
                       className="bg-white border border-gray-200 hover:border-blue-300 text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition-colors">
                       {label} →
@@ -911,7 +912,7 @@ export default function AdminPage() {
         {/* ===== INASISTENCIAS ===== */}
         {seccion === "inasistencias" && (
           <div>
-            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">🏥 Inasistencias Médicas</h1>
+            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">🏥 Inasistencia Médica</h1>
             <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 w-fit">
               {[["nueva","➕ Registrar"],["hist","📋 Historial"]].map(([id,label]) => (
                 <button key={id} onClick={() => setMedTab(id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${medTab === id ? "bg-white text-[#1e293b] shadow" : "text-gray-500"}`}>{label}</button>
@@ -921,13 +922,21 @@ export default function AdminPage() {
               <Card>
                 <div className="space-y-4">
                   <AsoSearch asociados={asociados} value={medCuil} onChange={setMedCuil} />
-                  <div><Label>Fecha de ausencia</Label><Input type="date" value={medFecha} onChange={e => setMedFecha(e.target.value)} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><Label>Fecha Desde</Label><Input type="date" value={medFechaDesde} onChange={e => { setMedFechaDesde(e.target.value); if (!medFechaHasta || e.target.value > medFechaHasta) setMedFechaHasta(e.target.value); }} /></div>
+                    <div><Label>Fecha Hasta</Label><Input type="date" value={medFechaHasta} onChange={e => setMedFechaHasta(e.target.value)} /></div>
+                  </div>
+                  {medFechaDesde && medFechaHasta && medFechaDesde !== medFechaHasta && (
+                    <p className="text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                      {Math.round((new Date(medFechaHasta).getTime() - new Date(medFechaDesde).getTime()) / 86400000) + 1} días de inasistencia
+                    </p>
+                  )}
                   <div><Label>Motivo / Diagnóstico</Label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none" rows={3} value={medMotivo} onChange={e => setMedMotivo(e.target.value)} /></div>
                   <Btn onClick={async () => {
                     if (!medMotivo) { setMsg({ text: "Ingresá el motivo.", ok: false }); return; }
-                    await fetch("/api/medico", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: medCuil, fecha: medFecha, motivo: medMotivo }) });
-                    setMsg({ text: "Ausencia médica registrada.", ok: true }); setMedMotivo("");
-                  }}>💾 Registrar Ausencia</Btn>
+                    await fetch("/api/medico", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: medCuil, fecha_desde: medFechaDesde, fecha_hasta: medFechaHasta, motivo: medMotivo }) });
+                    setMsg({ text: "Inasistencia médica registrada.", ok: true }); setMedMotivo("");
+                  }}>💾 Registrar Inasistencia</Btn>
                 </div>
               </Card>
             )}
@@ -950,16 +959,21 @@ export default function AdminPage() {
                 </Card>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Fecha","Motivo"].map(h => <th key={h} className="text-left px-4 py-3">{h}</th>)}</tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Desde","Hasta","Días","Motivo"].map(h => <th key={h} className="text-left px-4 py-3">{h}</th>)}</tr></thead>
                     <tbody>
                       {medHistorial.map(h => {
                         const aso = asociados.find(a => a.cuil === h.cuil_asociado);
+                        const dias = h.fecha_desde && h.fecha_hasta
+                          ? Math.round((new Date(h.fecha_hasta).getTime() - new Date(h.fecha_desde).getTime()) / 86400000) + 1
+                          : 1;
                         return (
                           <tr key={h.id} className="border-t border-gray-100">
                             <td className="px-4 py-2">{aso?.nro_asociado || "-"}</td>
                             <td className="px-4 py-2">{h.cuil_asociado}</td>
                             <td className="px-4 py-2">{(h.maestro_asociados as { nombre_completo?: string } | undefined)?.nombre_completo || aso?.nombre_completo || "-"}</td>
-                            <td className="px-4 py-2">{h.fecha}</td>
+                            <td className="px-4 py-2">{h.fecha_desde}</td>
+                            <td className="px-4 py-2">{h.fecha_hasta}</td>
+                            <td className="px-4 py-2 text-center">{dias}</td>
                             <td className="px-4 py-2">{h.motivo}</td>
                           </tr>
                         );
@@ -972,7 +986,8 @@ export default function AdminPage() {
                     const XLSX = await import("xlsx");
                     const rows = medHistorial.map(h => {
                       const aso = asociados.find(a => a.cuil === h.cuil_asociado);
-                      return { Legajo: aso?.nro_asociado || "", CUIL: h.cuil_asociado, Nombre: aso?.nombre_completo || "", Fecha: h.fecha, Motivo: h.motivo };
+                      const dias = h.fecha_desde && h.fecha_hasta ? Math.round((new Date(h.fecha_hasta).getTime() - new Date(h.fecha_desde).getTime()) / 86400000) + 1 : 1;
+                      return { Legajo: aso?.nro_asociado || "", CUIL: h.cuil_asociado, Nombre: aso?.nombre_completo || "", Desde: h.fecha_desde, Hasta: h.fecha_hasta, Dias: dias, Motivo: h.motivo };
                     });
                     const ws = XLSX.utils.json_to_sheet(rows);
                     const wb = XLSX.utils.book_new();
