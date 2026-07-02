@@ -29,11 +29,12 @@ export async function GET(req: NextRequest) {
   }
 
   if (all) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("maestro_asociados")
-      .select("cuil,nro_asociado,nro_legajo,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso,fecha_salida,activo")
+      .select("*")
       .eq("activo", true)
       .order("nombre_completo");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data || []);
   }
 
