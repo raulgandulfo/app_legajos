@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 interface Session { username: string; rol: string; }
-interface Asociado { cuil: string; nro_asociado?: string; nro_legajo?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; fecha_salida?: string; activo?: boolean; }
+interface Asociado { cuil: string; nro_asociado?: string; nro_legajo?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; fecha_salida?: string; activo?: boolean; estado_civil?: string; hijos?: number; }
 interface Sector { id: number; nombre: string; }
 interface Prestamo { id: number; cuil_asociado: string; fecha_otorgamiento: string; monto_total: number; cantidad_cuotas: number; prestamos_cuotas?: Cuota[]; maestro_asociados?: { nombre_completo: string }; }
 interface Cuota { id: number; numero_cuota: number; monto_cuota: number; fecha_vencimiento: string; estado: string; }
@@ -65,7 +65,7 @@ export default function AdminPage() {
   const [editAso, setEditAso] = useState<Asociado | null>(null);
   const [asoForm, setAsoForm] = useState<Partial<Asociado>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [sobreescribir, setSobreescribir] = useState(true);
+  const [sobreescribir, setSobreescribir] = useState(false);
   const [importing, setImporting] = useState(false);
 
   // --- Préstamos ---
@@ -527,7 +527,7 @@ export default function AdminPage() {
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600"><tr>
-                      {["CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
+                      {["CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Est. Civil","Hijos","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {asociados.map(a => (
@@ -542,6 +542,8 @@ export default function AdminPage() {
                           <td className="px-3 py-2">{a.telefono}</td>
                           <td className="px-3 py-2">{a.sector}</td>
                           <td className="px-3 py-2">{a.categoria}</td>
+                          <td className="px-3 py-2">{a.estado_civil || ""}</td>
+                          <td className="px-3 py-2">{a.hijos ?? ""}</td>
                           <td className="px-3 py-2">{a.fecha_ingreso}</td>
                           <td className="px-3 py-2 text-red-500">{a.fecha_salida || ""}</td>
                         </tr>
@@ -1430,6 +1432,16 @@ function AsoForm({ sectores, categorias, inicial, onSave }: {
         <Label>Fecha de Salida (baja)</Label>
         <Input type="date" value={form.fecha_salida || ""} onChange={f("fecha_salida")} />
         {form.fecha_salida && <p className="text-xs text-amber-600 mt-1">⚠️ Al guardar se marcará como inactivo</p>}
+      </div>
+      <div><Label>Estado Civil</Label>
+        <select className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+          value={form.estado_civil || ""} onChange={f("estado_civil")}>
+          <option value="">-- Seleccioná --</option>
+          {["Soltero/a","Casado/a","Divorciado/a","Viudo/a","Unión convivencial"].map(e => <option key={e}>{e}</option>)}
+        </select>
+      </div>
+      <div><Label>Cantidad de Hijos</Label>
+        <Input type="number" min={0} max={20} value={form.hijos ?? ""} onChange={e => setForm(prev => ({ ...prev, hijos: e.target.value === "" ? undefined : Number(e.target.value) }))} placeholder="0" />
       </div>
       <div className="col-span-2">
         <button
