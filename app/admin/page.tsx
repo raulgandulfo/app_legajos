@@ -1224,7 +1224,7 @@ function AsoSearch({ asociados, value, onChange, label = "Asociado" }: {
   return (
     <div className="relative">
       <Label>{label}</Label>
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <Input
           placeholder="Buscar por nombre o CUIL..."
           value={open ? q : (selected ? `${selected.nombre_completo} — ${selected.cuil}` : "")}
@@ -1232,6 +1232,12 @@ function AsoSearch({ asociados, value, onChange, label = "Asociado" }: {
           onChange={e => setQ(e.target.value)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
         />
+        {value && (
+          <button type="button" onClick={() => { onChange(""); setQ(""); }}
+            className="text-gray-400 hover:text-gray-600 text-lg leading-none flex-shrink-0 px-1" title="Limpiar">
+            ✕
+          </button>
+        )}
       </div>
       {open && results.length > 0 && (
         <div className="absolute z-50 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto mt-1">

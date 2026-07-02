@@ -40,15 +40,20 @@ function normSec(s: string): string {
   return (s || "General").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().trim();
 }
 
-// pdf-lib usa WinAnsi: elimina caracteres fuera de rango (0xFFFD, etc.)
+// pdf-lib StandardFonts usan WinAnsi: transliterar caracteres fuera de rango
 function sp(s: string): string {
-  return (s || "").replace(/[�Ā-￿]/g, c => {
-    const map: Record<string, string> = {
-      "’": "'", "‘": "'", "“": '"', "”": '"',
-      "–": "-", "—": "-", "•": "*", "°": "o",
-    };
-    return map[c] ?? "?";
-  });
+  return (s || "")
+    .normalize("NFD")
+    .replace(/̀-ͯ/g, "")
+    .replace(/ñ/g, "n").replace(/Ñ/g, "N")
+    .replace(/[^\x20-\x7E]/g, c => {
+      const extras: Record<string, string> = {
+        "‘": "'", "’": "'", "“": '"', "”": '"',
+        "–": "-", "—": "-", "•": "*", "°": "o",
+        "�": "?",
+      };
+      return extras[c] ?? "?";
+    });
 }
 
 // Pagina automáticamente de a 1000 filas — PostgREST tiene max-rows=1000 en Supabase
