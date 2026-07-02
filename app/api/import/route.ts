@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
 
   const ALIAS: Record<string, string[]> = {
     cuil:           ["CUIL", "cuil", "C.U.I.L.", "CUIT"],
-    nro_asociado:   ["Legajo", "Nro. de Legajo", "Nro.Legajo", "Numero de Legajo", "Numero", "Nro", "nro_asociado", "NRO", "Número de Legajo", "Nro Legajo"],
+    nro_asociado:   ["Nro. Asociado", "Numero Asociado", "Nro Asociado", "nro_asociado"],
+    nro_legajo:     ["Número", "Numero", "Legajo", "Nro. de Legajo", "Nro.Legajo", "Numero de Legajo", "Nro", "NRO", "Número de Legajo", "Nro Legajo"],
     nombre_completo:["Apellido y Nombre", "Nombre y Apellido", "Nombre Completo", "Nombre", "nombre_completo", "Apellido"],
     dni:            ["Nro. de Documento", "Número de Documento", "Nro. Documento", "DNI", "dni", "Documento", "Nro Documento"],
     domicilio:      ["Calle", "Domicilio", "domicilio", "Dirección", "Direccion", "Domicilio Particular"],
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
     sector:         ["Sector", "sector", "Sección", "Seccion", "Area", "Área"],
     categoria:      ["Categoría funcional", "Categoria funcional", "Categoría", "Categoria", "categoria", "Categ.", "Cat."],
     fecha_ingreso:  ["Fecha de alta", "Fecha Alta", "Fecha Ingreso", "Fecha de Ingreso", "fecha_ingreso"],
+    fecha_salida:   ["Fecha de baja", "Fecha Baja", "Fecha Salida", "fecha_salida", "Baja"],
     cod_area:       ["Cód. de Área", "Cod. de Area", "Código de área", "Código de Área", "Codigo de area", "Cod. Area", "Cód. Área", "Cod.Area", "CodArea"],
   };
 
@@ -112,9 +114,11 @@ export async function POST(req: NextRequest) {
         else tel = fijo;
       }
 
+      const fecha_salida = getCell(row, ALIAS.fecha_salida) || null;
       const datos = {
         cuil,
         nro_asociado: getCell(row, ALIAS.nro_asociado) || null,
+        nro_legajo: getCell(row, ALIAS.nro_legajo) || null,
         nombre_completo: nombre,
         dni: getCell(row, ALIAS.dni) || null,
         domicilio: getCell(row, ALIAS.domicilio) || null,
@@ -124,7 +128,8 @@ export async function POST(req: NextRequest) {
         sector: getCell(row, ALIAS.sector) || null,
         categoria: getCell(row, ALIAS.categoria) || null,
         fecha_ingreso: getCell(row, ALIAS.fecha_ingreso) || null,
-        activo: true,
+        fecha_salida,
+        activo: !fecha_salida,
       };
 
       if (sobreescribir) {

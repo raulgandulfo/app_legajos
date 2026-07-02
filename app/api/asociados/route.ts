@@ -18,8 +18,7 @@ export async function GET(req: NextRequest) {
   if (reporte) {
     const { data } = await supabase
       .from("maestro_asociados")
-      .select("cuil,nro_asociado,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso")
-      .eq("activo", true)
+      .select("cuil,nro_asociado,nro_legajo,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso,fecha_salida,activo")
       .order("nombre_completo");
     return NextResponse.json(data || []);
   }
@@ -32,7 +31,7 @@ export async function GET(req: NextRequest) {
   if (all) {
     const { data } = await supabase
       .from("maestro_asociados")
-      .select("cuil,nro_asociado,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso")
+      .select("cuil,nro_asociado,nro_legajo,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso,fecha_salida,activo")
       .eq("activo", true)
       .order("nombre_completo");
     return NextResponse.json(data || []);
@@ -44,6 +43,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const datos = await req.json();
+  // Si tiene fecha_salida, marcar como inactivo automáticamente
+  if (datos.fecha_salida) datos.activo = false;
+  else datos.activo = true;
   const { error } = await supabase.from("maestro_asociados").upsert(datos, { onConflict: "cuil" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

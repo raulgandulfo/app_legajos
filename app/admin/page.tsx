@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 interface Session { username: string; rol: string; }
-interface Asociado { cuil: string; nro_asociado?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; activo?: boolean; }
+interface Asociado { cuil: string; nro_asociado?: string; nro_legajo?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; fecha_salida?: string; activo?: boolean; }
 interface Sector { id: number; nombre: string; }
 interface Prestamo { id: number; cuil_asociado: string; fecha_otorgamiento: string; monto_total: number; cantidad_cuotas: number; prestamos_cuotas?: Cuota[]; maestro_asociados?: { nombre_completo: string }; }
 interface Cuota { id: number; numero_cuota: number; monto_cuota: number; fecha_vencimiento: string; estado: string; }
@@ -421,22 +421,23 @@ export default function AdminPage() {
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600"><tr>
-                      {["CUIL","Nro","Nombre","DNI","Domicilio","Localidad","Provincia","Teléfono","Sector","Categoría","Ingreso"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
+                      {["CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {asociados.map(a => (
-                        <tr key={a.cuil} className="border-t border-gray-100 hover:bg-gray-50">
+                        <tr key={a.cuil} className={`border-t border-gray-100 hover:bg-gray-50 ${a.activo === false ? "opacity-50" : ""}`}>
                           <td className="px-3 py-2">{a.cuil}</td>
                           <td className="px-3 py-2">{a.nro_asociado}</td>
+                          <td className="px-3 py-2">{a.nro_legajo}</td>
                           <td className="px-3 py-2 font-medium">{a.nombre_completo}</td>
-                          <td className="px-3 py-2">{(a as Asociado & { dni?: string }).dni}</td>
+                          <td className="px-3 py-2">{a.dni}</td>
                           <td className="px-3 py-2">{a.domicilio}</td>
                           <td className="px-3 py-2">{a.localidad}</td>
-                          <td className="px-3 py-2">{a.provincia}</td>
                           <td className="px-3 py-2">{a.telefono}</td>
                           <td className="px-3 py-2">{a.sector}</td>
                           <td className="px-3 py-2">{a.categoria}</td>
                           <td className="px-3 py-2">{a.fecha_ingreso}</td>
+                          <td className="px-3 py-2 text-red-500">{a.fecha_salida || ""}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1238,6 +1239,7 @@ function AsoForm({ sectores, categorias, inicial, onSave }: {
     <div className="grid grid-cols-2 gap-4">
       <div><Label>CUIL *</Label><Input value={form.cuil || ""} onChange={f("cuil")} /></div>
       <div><Label>Nro Asociado</Label><Input value={form.nro_asociado || ""} onChange={f("nro_asociado")} /></div>
+      <div><Label>Nro Legajo</Label><Input value={form.nro_legajo || ""} onChange={f("nro_legajo")} /></div>
       <div><Label>Nombre Completo *</Label><Input value={form.nombre_completo || ""} onChange={f("nombre_completo")} /></div>
       <div><Label>DNI</Label><Input value={form.dni || ""} onChange={f("dni")} /></div>
       <div><Label>Teléfono</Label><Input value={form.telefono || ""} onChange={f("telefono")} /></div>
@@ -1261,6 +1263,11 @@ function AsoForm({ sectores, categorias, inicial, onSave }: {
         ) : <Input value={form.categoria || ""} onChange={f("categoria")} />}
       </div>
       <div><Label>Fecha de Ingreso</Label><Input type="date" value={form.fecha_ingreso || ""} onChange={f("fecha_ingreso")} /></div>
+      <div>
+        <Label>Fecha de Salida (baja)</Label>
+        <Input type="date" value={form.fecha_salida || ""} onChange={f("fecha_salida")} />
+        {form.fecha_salida && <p className="text-xs text-amber-600 mt-1">⚠️ Al guardar se marcará como inactivo</p>}
+      </div>
       <div className="col-span-2">
         <button
           className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold transition-colors"
