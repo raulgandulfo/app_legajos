@@ -50,7 +50,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(""); const [pass, setPass] = useState("");
   const [loginMsg, setLoginMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [seccion, setSeccion] = useState("asociados");
+  const [seccion, setSeccion] = useState("dashboard");
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // --- Datos ---
@@ -146,6 +146,20 @@ export default function AdminPage() {
   const [repLiqRows, setRepLiqRows] = useState<{ descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string }[]>([]);
   const [repLiqLoading, setRepLiqLoading] = useState(false);
 
+  // --- Dashboard ---
+  const [dash, setDash] = useState<{ totalActivos: number; cuotasPendientes: number; cuotasVencidas: number; sancionesVigentes: number; inasistencias30: number } | null>(null);
+
+  // --- Búsqueda global ---
+  const [globalQ, setGlobalQ] = useState("");
+  const [globalOpen, setGlobalOpen] = useState(false);
+
+  // --- Préstamo activo: alerta ---
+  const [preActivoAlerta, setPreActivoAlerta] = useState(false);
+
+  // --- Recibos preview ---
+  const [reciboPreview, setReciboPreview] = useState<{ total_cuils: number; por_sector: Record<string, { cantidad: number }> } | null>(null);
+  const [reciboPreviewLoading, setReciboPreviewLoading] = useState(false);
+
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
       if (s?.rol === "admin" || s?.rol === "auxiliar") setSession(s);
@@ -164,7 +178,12 @@ export default function AdminPage() {
     if (a.length) { setPreCuil(a[0].cuil); setSanCuil(a[0].cuil); setMedCuil(a[0].cuil); setMedHistCuil(a[0].cuil); setPreEditCuil(a[0].cuil); }
   }, []);
 
-  useEffect(() => { if (session) loadBase(); }, [session, loadBase]);
+  useEffect(() => {
+    if (session) {
+      loadBase();
+      fetch("/api/dashboard").then(r => r.json()).then(setDash);
+    }
+  }, [session, loadBase]);
 
   useEffect(() => {
     const dates: string[] = [];
@@ -290,6 +309,15 @@ export default function AdminPage() {
     setLiqCargando(false);
   }
 
+  async function previewRecibos() {
+    if (!periodosSel.length) return;
+    setReciboPreviewLoading(true);
+    setReciboPreview(null);
+    const r = await fetch(`/api/recibos?periodos=${encodeURIComponent(periodosSel.join(","))}`);
+    if (r.ok) setReciboPreview(await r.json());
+    setReciboPreviewLoading(false);
+  }
+
   async function generarRecibos() {
     if (!periodosSel.length || !tituloRecibo) return;
     setGenRecibos(true);
@@ -308,6 +336,7 @@ export default function AdminPage() {
   ).slice(0, 25);
 
   const SECCIONES = [
+    { id: "dashboard", label: "🏠 Inicio" },
     { id: "asociados", label: "👤 Asociados" },
     { id: "prestamos", label: "💰 Préstamos" },
     { id: "sanciones", label: "⚠️ Sanciones" },
@@ -352,6 +381,40 @@ export default function AdminPage() {
           <div className="text-xs opacity-60">{session.username} · {session.rol.toUpperCase()}</div>
         </div>
         <hr className="border-[#334155] mb-3" />
+
+        {/* Búsqueda global */}
+        <div className="relative mb-3">
+          <input
+            placeholder="🔍 Buscar CUIL o nombre..."
+            className="w-full px-2 py-1.5 rounded-lg text-xs bg-[#263447] border border-[#334155] text-white placeholder-[#94a3b8] focus:outline-none focus:border-blue-400"
+            value={globalQ}
+            onChange={e => { setGlobalQ(e.target.value); setGlobalOpen(true); }}
+            onFocus={() => setGlobalOpen(true)}
+            onBlur={() => setTimeout(() => setGlobalOpen(false), 150)}
+          />
+          {globalOpen && globalQ.trim().length > 1 && (() => {
+            const q = globalQ.toLowerCase();
+            const hits = asociados.filter(a =>
+              a.nombre_completo.toLowerCase().includes(q) || a.cuil.includes(q)
+            ).slice(0, 8);
+            return hits.length > 0 ? (
+              <div className="absolute left-0 right-0 bg-white text-gray-800 rounded-lg shadow-xl border border-gray-200 z-50 mt-1 max-h-64 overflow-y-auto">
+                {hits.map(a => (
+                  <button key={a.cuil} type="button" className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                    onMouseDown={() => {
+                      setGlobalQ(""); setGlobalOpen(false);
+                      setSeccion("asociados"); setAsoTab("buscar");
+                      setFiltro(a.cuil);
+                    }}>
+                    <div className="font-medium truncate">{a.nombre_completo}</div>
+                    <div className="text-gray-400">{a.cuil}{a.nro_legajo ? ` · Leg. ${a.nro_legajo}` : ""}</div>
+                  </button>
+                ))}
+              </div>
+            ) : null;
+          })()}
+        </div>
+
         <nav className="flex-1 space-y-1">
           {SECCIONES.map(s => (
             <button key={s.id} onClick={() => { setSeccion(s.id); setMsg(null); }}
@@ -366,6 +429,46 @@ export default function AdminPage() {
 
       <main className="flex-1 p-6 overflow-auto">
         <Alert msg={msg} />
+
+        {/* ===== DASHBOARD ===== */}
+        {seccion === "dashboard" && (
+          <div>
+            <h1 className="text-2xl font-bold text-[#1e293b] mb-6">🏠 Resumen General</h1>
+            {!dash ? (
+              <p className="text-gray-400 text-sm">Cargando datos...</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-white rounded-xl p-5 shadow border border-gray-100">
+                    <div className="text-3xl font-bold text-blue-600">{dash.totalActivos}</div>
+                    <div className="text-sm text-gray-500 mt-1">Asociados activos</div>
+                  </div>
+                  <div className={`bg-white rounded-xl p-5 shadow border ${dash.cuotasVencidas > 0 ? "border-red-200" : "border-gray-100"}`}>
+                    <div className={`text-3xl font-bold ${dash.cuotasVencidas > 0 ? "text-red-600" : "text-amber-500"}`}>{dash.cuotasPendientes}</div>
+                    <div className="text-sm text-gray-500 mt-1">Cuotas de préstamos pendientes</div>
+                    {dash.cuotasVencidas > 0 && <div className="text-xs text-red-500 mt-1">⚠️ {dash.cuotasVencidas} vencidas sin descontar</div>}
+                  </div>
+                  <div className={`bg-white rounded-xl p-5 shadow border ${dash.sancionesVigentes > 0 ? "border-amber-200" : "border-gray-100"}`}>
+                    <div className={`text-3xl font-bold ${dash.sancionesVigentes > 0 ? "text-amber-600" : "text-gray-700"}`}>{dash.sancionesVigentes}</div>
+                    <div className="text-sm text-gray-500 mt-1">Sanciones vigentes</div>
+                  </div>
+                  <div className="bg-white rounded-xl p-5 shadow border border-gray-100">
+                    <div className="text-3xl font-bold text-purple-600">{dash.inasistencias30}</div>
+                    <div className="text-sm text-gray-500 mt-1">Inasistencias últimos 30 días</div>
+                  </div>
+                </div>
+                <div className="flex gap-3 flex-wrap">
+                  {([["asociados","👤 Asociados"],["prestamos","💰 Préstamos"],["sanciones","⚠️ Sanciones"],["inasistencias","🏥 Inasistencias"]] as [string,string][]).map(([id,label]) => (
+                    <button key={id} onClick={() => setSeccion(id)}
+                      className="bg-white border border-gray-200 hover:border-blue-300 text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition-colors">
+                      {label} →
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* ===== ASOCIADOS ===== */}
         {seccion === "asociados" && (
@@ -538,11 +641,21 @@ export default function AdminPage() {
             {preTab === "nuevo" && (
               <Card>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <AsoSearch asociados={asociados} value={preCuil} onChange={setPreCuil} />
+                  <AsoSearch asociados={asociados} value={preCuil} onChange={async cuil => {
+                    setPreCuil(cuil);
+                    setPreActivoAlerta(false);
+                    if (cuil) {
+                      const r = await fetch(`/api/prestamos?cuil=${cuil}`);
+                      const d = await r.json();
+                      const tieneActivo = (d as Prestamo[]).some(p => (p.prestamos_cuotas || []).some(c => c.estado === "Pendiente"));
+                      setPreActivoAlerta(tieneActivo);
+                    }
+                  }} />
                   <div><Label>Fecha de otorgamiento</Label><Input type="date" value={preFecha} onChange={e => setPreFecha(e.target.value)} /></div>
                   <div><Label>Monto Total ($)</Label><Input type="text" inputMode="numeric" value={preMonto === 0 ? "" : preMonto.toLocaleString("es-AR")} onChange={e => { const raw = e.target.value.replace(/\./g, "").replace(/,/g, ""); const n = parseInt(raw, 10); setPreMonto(isNaN(n) ? 0 : n); }} placeholder="0" /></div>
                   <div><Label>Cantidad de cuotas</Label><Input type="number" min={1} max={60} value={preCuotas} onChange={e => setPreCuotas(Number(e.target.value))} /></div>
                 </div>
+                {preActivoAlerta && <div className="bg-amber-50 border border-amber-300 text-amber-700 p-3 rounded-lg text-sm mb-4">⚠️ <b>Este asociado ya tiene un préstamo con cuotas pendientes.</b> Verificá antes de otorgar uno nuevo.</div>}
                 {preMonto > 0 && <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm mb-4">💡 Monto por cuota: <b>${fmt(Math.round(preMonto / preCuotas * 100) / 100)}</b></div>}
                 <h4 className="font-semibold text-sm mb-2">Fechas de vencimiento:</h4>
                 <div className="grid grid-cols-4 gap-2 mb-4">
@@ -1152,6 +1265,25 @@ export default function AdminPage() {
                     <AsoSearch asociados={asociados} value={reciboFiltroCuil} onChange={setReciboFiltroCuil} label="Asociado" />
                   )}
                 </div>
+
+                {/* Preview */}
+                {periodosSel.length > 0 && (
+                  <div className="mb-4">
+                    <Btn variant="secondary" onClick={previewRecibos} disabled={reciboPreviewLoading}>
+                      {reciboPreviewLoading ? "Consultando..." : "🔍 Ver cuántos empleados incluye"}
+                    </Btn>
+                    {reciboPreview && (
+                      <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                        <p className="font-semibold text-blue-800 mb-1">Vista previa: <span className="text-lg">{reciboPreview.total_cuils}</span> empleados en el ZIP</p>
+                        <div className="grid grid-cols-2 gap-1 text-blue-700 text-xs">
+                          {Object.entries(reciboPreview.por_sector || {}).sort(([,a],[,b]) => b.cantidad - a.cantidad).map(([sec, d]) => (
+                            <span key={sec}>{sec}: <b>{d.cantidad}</b></span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div><Label>Título del recibo</Label><Input value={tituloRecibo} onChange={e => setTituloRecibo(e.target.value)} placeholder="JUNIO 2026" /></div>
