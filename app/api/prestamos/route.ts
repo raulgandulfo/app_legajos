@@ -6,13 +6,50 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const cuil = searchParams.get("cuil");
   const reporte = searchParams.get("reporte");
+  const fechaDesde = searchParams.get("fecha_desde");
+  const fechaHasta = searchParams.get("fecha_hasta");
+  const vtoDesde = searchParams.get("vto_desde");
+  const vtoHasta = searchParams.get("vto_hasta");
+
+  // Auto-marcar cuotas vencidas como Descontadas
+  const hoy = new Date().toISOString().slice(0, 10);
+  await supabase
+    .from("prestamos_cuotas")
+    .update({ estado: "Descontada" })
+    .eq("estado", "Pendiente")
+    .lt("fecha_vencimiento", hoy);
 
   if (reporte) {
-    const { data } = await supabase
+    let query = supabase
       .from("prestamos")
-      .select("*, maestro_asociados(cuil, nombre_completo), prestamos_cuotas(*)")
+      .select("*, maestro_asociados(cuil, nro_asociado, nombre_completo), prestamos_cuotas(*)")
       .order("fecha_otorgamiento", { ascending: false });
-    return NextResponse.json(data || []);
+
+    if (fechaDesde) query = query.gte("fecha_otorgamiento", fechaDesde);
+    if (fechaHasta) query = query.lte("fecha_otorgamiento", fechaHasta);
+
+    const { data } = await query;
+    let result = data || [];
+
+    // Filtro por fecha de vencimiento de cuotas
+    if (vtoDesde || vtoHasta) {
+      result = result.filter(p =>
+        (p.prestamos_cuotas || []).some((c: { fecha_vencimiento: string }) => {
+          if (vtoDesde && c.fecha_vencimiento < vtoDesde) return false;
+          if (vtoHasta && c.fecha_vencimiento > vtoHasta) return false;
+          return true;
+        })
+      ).map(p => ({
+        ...p,
+        prestamos_cuotas: (p.prestamos_cuotas || []).filter((c: { fecha_vencimiento: string }) => {
+          if (vtoDesde && c.fecha_vencimiento < vtoDesde) return false;
+          if (vtoHasta && c.fecha_vencimiento > vtoHasta) return false;
+          return true;
+        }),
+      }));
+    }
+
+    return NextResponse.json(result);
   }
 
   if (cuil) {

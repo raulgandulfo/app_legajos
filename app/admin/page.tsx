@@ -78,6 +78,13 @@ export default function AdminPage() {
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
   const [preEditCuil, setPreEditCuil] = useState("");
   const [cuotasEdit, setCuotasEdit] = useState<Record<number, { fecha: string; estado: string }>>({});
+  const [preRepCuil, setPreRepCuil] = useState("");
+  const [preRepData, setPreRepData] = useState<Prestamo[]>([]);
+  const [preRepDesde, setPreRepDesde] = useState("");
+  const [preRepHasta, setPreRepHasta] = useState("");
+  const [preRepVtoDesde, setPreRepVtoDesde] = useState("");
+  const [preRepVtoHasta, setPreRepVtoHasta] = useState("");
+  const [preRepLoading, setPreRepLoading] = useState(false);
 
   // --- Sanciones ---
   const [sanTab, setSanTab] = useState("nueva");
@@ -88,6 +95,9 @@ export default function AdminPage() {
   const [sanHasta, setSanHasta] = useState(new Date().toISOString().slice(0, 10));
   const [sanMotivo, setSanMotivo] = useState("");
   const [sanReporte, setSanReporte] = useState<Sancion[]>([]);
+  const [sanRepCuil, setSanRepCuil] = useState("");
+  const [sanRepDesde, setSanRepDesde] = useState("");
+  const [sanRepHasta, setSanRepHasta] = useState("");
 
   // --- Inasistencias ---
   const [medTab, setMedTab] = useState("nueva");
@@ -96,6 +106,9 @@ export default function AdminPage() {
   const [medMotivo, setMedMotivo] = useState("");
   const [medHistCuil, setMedHistCuil] = useState("");
   const [medHistorial, setMedHistorial] = useState<AusenciaMedica[]>([]);
+  const [medRepCuil, setMedRepCuil] = useState("");
+  const [medRepDesde, setMedRepDesde] = useState("");
+  const [medRepHasta, setMedRepHasta] = useState("");
 
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
@@ -548,22 +561,104 @@ export default function AdminPage() {
             )}
 
             {preTab === "reporte" && (
-              <div>
-                <div className="bg-white rounded-xl shadow overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr>{["CUIL","Nombre","Monto Total","Cuota N°","Monto Cuota","Vencimiento","Estado","Otorgamiento"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
-                    <tbody></tbody>
-                  </table>
-                </div>
-                <Btn variant="secondary" className="mt-3" onClick={async () => {
-                  const r = await fetch("/api/prestamos?reporte=1");
-                  const d: Prestamo[] = await r.json();
-                  const filas: string[] = [];
-                  d.forEach(p => (p.prestamos_cuotas || []).forEach(c => filas.push(`${p.cuil_asociado},${p.maestro_asociados?.nombre_completo || ""},${p.monto_total},${c.numero_cuota},${c.monto_cuota},${c.fecha_vencimiento},${c.estado},${p.fecha_otorgamiento}`)));
-                  const csv = ["CUIL,Nombre,Monto Total,Cuota N°,Monto Cuota,Vencimiento,Estado,Otorgamiento", ...filas].join("\n");
-                  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                  const a = document.createElement("a"); a.href = url; a.download = "prestamos.csv"; a.click();
-                }}>📥 Descargar CSV</Btn>
+              <div className="space-y-4">
+                {/* Historial por asociado */}
+                <Card>
+                  <h3 className="font-bold text-sm mb-3">Historial por Asociado</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div className="md:col-span-2"><AsoSearch asociados={asociados} value={preRepCuil} onChange={cuil => { setPreRepCuil(cuil); setPreRepData([]); }} label="Asociado" /></div>
+                    <div className="flex items-end">
+                      <Btn disabled={!preRepCuil || preRepLoading} onClick={async () => {
+                        setPreRepLoading(true);
+                        const r = await fetch(`/api/prestamos?cuil=${preRepCuil}`);
+                        setPreRepData(await r.json());
+                        setPreRepLoading(false);
+                      }}>{preRepLoading ? "Buscando..." : "🔍 Ver historial"}</Btn>
+                    </div>
+                  </div>
+                  {preRepData.length > 0 && (
+                    <div>
+                      <div className="overflow-x-auto mb-3">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","Nombre","Otorgamiento","Monto Total","Cuota N°","Monto Cuota","Vencimiento","Estado"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {preRepData.flatMap(p => (p.prestamos_cuotas || []).map(c => (
+                              <tr key={`${p.id}-${c.id}`} className="border-t border-gray-100">
+                                <td className="px-3 py-1.5">{(p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "-"}</td>
+                                <td className="px-3 py-1.5">{p.maestro_asociados?.nombre_completo}</td>
+                                <td className="px-3 py-1.5">{p.fecha_otorgamiento}</td>
+                                <td className="px-3 py-1.5">${fmt(p.monto_total)}</td>
+                                <td className="px-3 py-1.5 text-center">{c.numero_cuota}</td>
+                                <td className="px-3 py-1.5">${fmt(c.monto_cuota)}</td>
+                                <td className="px-3 py-1.5">{c.fecha_vencimiento}</td>
+                                <td className="px-3 py-1.5"><span className={`px-2 py-0.5 rounded text-xs ${c.estado === "Descontada" ? "bg-green-100 text-green-700" : c.estado === "Pausada" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>{c.estado}</span></td>
+                              </tr>
+                            )))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <Btn variant="secondary" onClick={async () => {
+                        const XLSX = await import("xlsx");
+                        const rows = preRepData.flatMap(p => (p.prestamos_cuotas || []).map(c => ({
+                          Legajo: (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
+                          Nombre: p.maestro_asociados?.nombre_completo || "",
+                          CUIL: p.cuil_asociado,
+                          Otorgamiento: p.fecha_otorgamiento,
+                          "Monto Total": p.monto_total,
+                          "Cuota N°": c.numero_cuota,
+                          "Monto Cuota": c.monto_cuota,
+                          Vencimiento: c.fecha_vencimiento,
+                          Estado: c.estado,
+                        })));
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Préstamos");
+                        XLSX.writeFile(wb, `prestamos_${preRepCuil}.xlsx`);
+                      }}>📊 Exportar XLSX</Btn>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Reporte por fechas */}
+                <Card>
+                  <h3 className="font-bold text-sm mb-3">Reporte por Fechas</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div><Label>Otorgamiento Desde</Label><Input type="date" value={preRepDesde} onChange={e => setPreRepDesde(e.target.value)} /></div>
+                    <div><Label>Otorgamiento Hasta</Label><Input type="date" value={preRepHasta} onChange={e => setPreRepHasta(e.target.value)} /></div>
+                    <div><Label>Vencimiento Desde</Label><Input type="date" value={preRepVtoDesde} onChange={e => setPreRepVtoDesde(e.target.value)} /></div>
+                    <div><Label>Vencimiento Hasta</Label><Input type="date" value={preRepVtoHasta} onChange={e => setPreRepVtoHasta(e.target.value)} /></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Btn disabled={preRepLoading} onClick={async () => {
+                      setPreRepLoading(true);
+                      const params = new URLSearchParams({ reporte: "1" });
+                      if (preRepDesde) params.set("fecha_desde", preRepDesde);
+                      if (preRepHasta) params.set("fecha_hasta", preRepHasta);
+                      if (preRepVtoDesde) params.set("vto_desde", preRepVtoDesde);
+                      if (preRepVtoHasta) params.set("vto_hasta", preRepVtoHasta);
+                      const r = await fetch(`/api/prestamos?${params}`);
+                      const d: Prestamo[] = await r.json();
+                      const XLSX = await import("xlsx");
+                      const rows = d.flatMap(p => (p.prestamos_cuotas || []).map(c => ({
+                        Legajo: (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
+                        Nombre: p.maestro_asociados?.nombre_completo || "",
+                        CUIL: p.cuil_asociado,
+                        Otorgamiento: p.fecha_otorgamiento,
+                        "Monto Total": p.monto_total,
+                        "Cuota N°": c.numero_cuota,
+                        "Monto Cuota": c.monto_cuota,
+                        Vencimiento: c.fecha_vencimiento,
+                        Estado: c.estado,
+                      })));
+                      if (!rows.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setPreRepLoading(false); return; }
+                      const ws = XLSX.utils.json_to_sheet(rows);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Préstamos");
+                      XLSX.writeFile(wb, "prestamos_reporte.xlsx");
+                      setPreRepLoading(false);
+                    }}>{preRepLoading ? "Generando..." : "📊 Exportar XLSX"}</Btn>
+                  </div>
+                </Card>
               </div>
             )}
           </div>
@@ -606,27 +701,58 @@ export default function AdminPage() {
             )}
             {sanTab === "reporte" && (
               <div>
-                <Btn variant="secondary" className="mb-3" onClick={async () => {
-                  const r = await fetch("/api/sanciones?reporte=1");
-                  const d: Sancion[] = await r.json();
-                  setSanReporte(d);
-                }}>🔄 Cargar reporte</Btn>
+                <Card>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div><AsoSearch asociados={asociados} value={sanRepCuil} onChange={setSanRepCuil} label="Filtrar asociado" /></div>
+                    <div><Label>Desde</Label><Input type="date" value={sanRepDesde} onChange={e => setSanRepDesde(e.target.value)} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={sanRepHasta} onChange={e => setSanRepHasta(e.target.value)} /></div>
+                  </div>
+                  <Btn variant="secondary" onClick={async () => {
+                    const r = await fetch("/api/sanciones?reporte=1");
+                    let d: Sancion[] = await r.json();
+                    if (sanRepCuil) d = d.filter(s => s.cuil_asociado === sanRepCuil);
+                    if (sanRepDesde) d = d.filter(s => s.fecha_desde >= sanRepDesde);
+                    if (sanRepHasta) d = d.filter(s => s.fecha_desde <= sanRepHasta);
+                    setSanReporte(d);
+                  }}>🔍 Buscar</Btn>
+                </Card>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr>{["CUIL","Nombre","Tipo","Fecha","Motivo"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Tipo","Fecha","Motivo"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
                     <tbody>
-                      {sanReporte.map(s => (
-                        <tr key={s.id} className="border-t border-gray-100">
-                          <td className="px-3 py-2">{s.cuil_asociado}</td>
-                          <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
-                          <td className="px-3 py-2">{s.tipo}</td>
-                          <td className="px-3 py-2">{s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde}</td>
-                          <td className="px-3 py-2">{s.motivo}</td>
-                        </tr>
-                      ))}
+                      {sanReporte.map(s => {
+                        const aso = asociados.find(a => a.cuil === s.cuil_asociado);
+                        return (
+                          <tr key={s.id} className="border-t border-gray-100">
+                            <td className="px-3 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-3 py-2">{s.cuil_asociado}</td>
+                            <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
+                            <td className="px-3 py-2">{s.tipo}</td>
+                            <td className="px-3 py-2">{s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde}</td>
+                            <td className="px-3 py-2">{s.motivo}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+                {sanReporte.length > 0 && (
+                  <Btn variant="secondary" className="mt-3" onClick={async () => {
+                    const XLSX = await import("xlsx");
+                    const rows = sanReporte.map(s => ({
+                      Legajo: asociados.find(a => a.cuil === s.cuil_asociado)?.nro_asociado || "",
+                      CUIL: s.cuil_asociado,
+                      Nombre: s.maestro_asociados?.nombre_completo || "",
+                      Tipo: s.tipo,
+                      Fecha: s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde,
+                      Motivo: s.motivo,
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Sanciones");
+                    XLSX.writeFile(wb, "sanciones.xlsx");
+                  }}>📊 Exportar XLSX</Btn>
+                )}
               </div>
             )}
           </div>
@@ -656,23 +782,56 @@ export default function AdminPage() {
               </Card>
             )}
             {medTab === "hist" && (
-              <Card>
-                <div className="mb-4">
-                  <AsoSearch asociados={asociados} value={medHistCuil} onChange={async cuil => {
-                    setMedHistCuil(cuil);
-                    const r = await fetch(`/api/medico?cuil=${cuil}`);
-                    setMedHistorial(await r.json());
-                  }} label="Ver historial de" />
-                </div>
-                <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+              <div>
+                <Card>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div><AsoSearch asociados={asociados} value={medRepCuil} onChange={setMedRepCuil} label="Filtrar asociado" /></div>
+                    <div><Label>Desde</Label><Input type="date" value={medRepDesde} onChange={e => setMedRepDesde(e.target.value)} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={medRepHasta} onChange={e => setMedRepHasta(e.target.value)} /></div>
+                  </div>
+                  <Btn variant="secondary" onClick={async () => {
+                    const cuil = medRepCuil || medHistCuil;
+                    const url = cuil ? `/api/medico?cuil=${cuil}` : "/api/medico?reporte=1";
+                    const r = await fetch(url);
+                    let d: AusenciaMedica[] = await r.json();
+                    if (medRepDesde) d = d.filter(h => h.fecha >= medRepDesde);
+                    if (medRepHasta) d = d.filter(h => h.fecha <= medRepHasta);
+                    setMedHistorial(d);
+                  }}>🔍 Buscar</Btn>
+                </Card>
+                <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr><th className="text-left px-4 py-3">Fecha</th><th className="text-left px-4 py-3">Motivo</th></tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Fecha","Motivo"].map(h => <th key={h} className="text-left px-4 py-3">{h}</th>)}</tr></thead>
                     <tbody>
-                      {medHistorial.map(h => <tr key={h.id} className="border-t border-gray-100"><td className="px-4 py-2">{h.fecha}</td><td className="px-4 py-2">{h.motivo}</td></tr>)}
+                      {medHistorial.map(h => {
+                        const aso = asociados.find(a => a.cuil === h.cuil_asociado);
+                        return (
+                          <tr key={h.id} className="border-t border-gray-100">
+                            <td className="px-4 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-4 py-2">{h.cuil_asociado}</td>
+                            <td className="px-4 py-2">{(h.maestro_asociados as { nombre_completo?: string } | undefined)?.nombre_completo || aso?.nombre_completo || "-"}</td>
+                            <td className="px-4 py-2">{h.fecha}</td>
+                            <td className="px-4 py-2">{h.motivo}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-              </Card>
+                {medHistorial.length > 0 && (
+                  <Btn variant="secondary" className="mt-3" onClick={async () => {
+                    const XLSX = await import("xlsx");
+                    const rows = medHistorial.map(h => {
+                      const aso = asociados.find(a => a.cuil === h.cuil_asociado);
+                      return { Legajo: aso?.nro_asociado || "", CUIL: h.cuil_asociado, Nombre: aso?.nombre_completo || "", Fecha: h.fecha, Motivo: h.motivo };
+                    });
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Inasistencias");
+                    XLSX.writeFile(wb, "inasistencias.xlsx");
+                  }}>📊 Exportar XLSX</Btn>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -694,12 +853,7 @@ export default function AdminPage() {
                     {sectores.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
                   </Select>
                 </div>
-                <div><Label>Asociado</Label>
-                  <Select value={repCuil} onChange={e => setRepCuil(e.target.value)}>
-                    <option value="">Todos</option>
-                    {(repSector ? asociados.filter(a => a.sector === repSector) : asociados).map(a => <option key={a.cuil} value={a.cuil}>{a.nombre_completo}</option>)}
-                  </Select>
-                </div>
+                <div><AsoSearch asociados={repSector ? asociados.filter(a => a.sector === repSector) : asociados} value={repCuil} onChange={setRepCuil} label="Asociado (todos si vacío)" /></div>
               </div>
             </Card>
             <div className="grid grid-cols-2 gap-4">
@@ -893,7 +1047,20 @@ export default function AdminPage() {
             {periodos.length > 0 && (
               <Card>
                 <h3 className="font-bold mb-3">Períodos ya cargados:</h3>
-                <ul className="space-y-1">{periodos.map(p => <li key={p} className="text-sm text-gray-600">• {p}</li>)}</ul>
+                <ul className="space-y-1">
+                  {periodos.map(p => (
+                    <li key={p} className="flex items-center justify-between text-sm text-gray-600 hover:bg-gray-50 px-2 py-1 rounded">
+                      <span>• {p}</span>
+                      <button onClick={async () => {
+                        if (!confirm(`¿Borrar todos los registros de "${p}"? Esta acción no se puede deshacer.`)) return;
+                        const r = await fetch("/api/liquidaciones", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodo: p }) });
+                        const d = await r.json();
+                        if (d.ok) { setMsg({ text: `Período "${p}" eliminado.`, ok: true }); fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos); }
+                        else setMsg({ text: `Error: ${d.error}`, ok: false });
+                      }} className="text-red-400 hover:text-red-600 text-xs ml-4">🗑️ Borrar</button>
+                    </li>
+                  ))}
+                </ul>
               </Card>
             )}
           </div>
@@ -910,7 +1077,15 @@ export default function AdminPage() {
                 <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Seleccioná una o más liquidaciones. Los conceptos se agruparán por empleado en un solo recibo.</p>
                 <div className="mb-4">
                   <Label>Liquidaciones a incluir</Label>
-                  <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                  <Input placeholder="Filtrar por período o año..." className="mb-2" onChange={e => {
+                    const v = e.target.value.toLowerCase();
+                    (e.target as HTMLInputElement).setAttribute("data-filter", v);
+                    const list = document.getElementById("periodos-list");
+                    if (list) list.querySelectorAll("label").forEach(l => {
+                      (l as HTMLElement).style.display = l.textContent?.toLowerCase().includes(v) ? "" : "none";
+                    });
+                  }} />
+                  <div id="periodos-list" className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto p-2 space-y-1">
                     {periodos.map(p => (
                       <label key={p} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
                         <input type="checkbox" checked={periodosSel.includes(p)} onChange={e => setPeriodosSel(prev => e.target.checked ? [...prev, p] : prev.filter(x => x !== p))} />
@@ -918,6 +1093,7 @@ export default function AdminPage() {
                       </label>
                     ))}
                   </div>
+                  {periodosSel.length > 0 && <p className="text-xs text-blue-600 mt-1">Seleccionados: {periodosSel.join(", ")}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div><Label>Título del recibo</Label><Input value={tituloRecibo} onChange={e => setTituloRecibo(e.target.value)} placeholder="JUNIO 2026" /></div>

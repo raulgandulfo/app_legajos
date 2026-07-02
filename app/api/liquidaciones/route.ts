@@ -45,6 +45,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json([]);
 }
 
+export async function DELETE(req: NextRequest) {
+  const supabase = getSupabase();
+  const { periodo } = await req.json();
+  if (!periodo) return NextResponse.json({ error: "Falta periodo" }, { status: 400 });
+  const { error } = await supabase.from("liquidaciones").delete().eq("periodo", periodo);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const { filas, reemplazar } = await req.json();
