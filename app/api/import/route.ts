@@ -24,7 +24,9 @@ function keyMatchesAlias(key: string, alias: string): boolean {
 }
 
 function sanitize(s: string): string {
-  return s.replace(/�/g, "?");
+  // Elimina U+FFFD (carácter de reemplazo) sin reemplazarlo por ?
+  // Con raw:false en XLSX.read, cp1252 se decodifica correctamente y no debería aparecer
+  return s.replace(/�/g, "");
 }
 
 function getCell(row: Record<string, unknown>, aliases: string[]): string {
@@ -63,7 +65,9 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
 
   const bytes = await file.arrayBuffer();
-  const workbook = XLSX.read(bytes, { type: "array", raw: true, codepage: 1252 });
+  // raw:true interfiere con la decodificación de strings; sin él SheetJS
+  // decodifica correctamente Latin-1/cp1252 en archivos .xls
+  const workbook = XLSX.read(bytes, { type: "array", codepage: 1252 });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
 
