@@ -101,10 +101,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
-  const { periodos, titulo, fecha } = await req.json();
+  const { periodos, titulo, fecha, filtroTipo, filtroSector, filtroCuil } = await req.json();
 
-  const rows = await queryAllRows(supabase, periodos);
+  let rows = await queryAllRows(supabase, periodos);
   if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
+
+  // Aplicar filtro antes de generar PDFs
+  if (filtroTipo === "sector" && filtroSector) {
+    const norm = normSec(filtroSector);
+    rows = rows.filter(r => normSec(r.sector || "General") === norm);
+  } else if (filtroTipo === "persona" && filtroCuil) {
+    const cuil = filtroCuil.replace(/-/g, "").replace(/\s/g, "");
+    rows = rows.filter(r => String(r.cuil || "").replace(/-/g, "").replace(/\s/g, "") === cuil);
+  }
+  if (!rows.length) return NextResponse.json({ error: "Sin datos para el filtro seleccionado" }, { status: 400 });
 
   try {
 

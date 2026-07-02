@@ -128,6 +128,9 @@ export default function AdminPage() {
   const [tituloRecibo, setTituloRecibo] = useState("");
   const [fechaEm, setFechaEm] = useState(new Date().toISOString().slice(0, 10));
   const [genRecibos, setGenRecibos] = useState(false);
+  const [reciboFiltroTipo, setReciboFiltroTipo] = useState<"todos" | "sector" | "persona">("todos");
+  const [reciboFiltroSector, setReciboFiltroSector] = useState("");
+  const [reciboFiltroCuil, setReciboFiltroCuil] = useState("");
 
   // --- Sectores ---
   const [nuSector, setNuSector] = useState("");
@@ -290,7 +293,7 @@ export default function AdminPage() {
   async function generarRecibos() {
     if (!periodosSel.length || !tituloRecibo) return;
     setGenRecibos(true);
-    const r = await fetch("/api/recibos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodos: periodosSel, titulo: tituloRecibo, fecha: fechaEm }) });
+    const r = await fetch("/api/recibos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodos: periodosSel, titulo: tituloRecibo, fecha: fechaEm, filtroTipo: reciboFiltroTipo, filtroSector: reciboFiltroSector, filtroCuil: reciboFiltroCuil }) });
     if (!r.ok) { const d = await r.json().catch(() => ({})); setMsg({ text: `Error al generar recibos: ${d.error || r.status}`, ok: false }); setGenRecibos(false); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
@@ -310,10 +313,10 @@ export default function AdminPage() {
     { id: "sanciones", label: "⚠️ Sanciones" },
     { id: "inasistencias", label: "🏥 Inasistencias" },
     { id: "reportes", label: "📊 Reportes" },
+    { id: "recibos", label: "🖨️ Emitir Recibos" },
     ...(session?.rol === "admin" ? [
       { id: "usuarios", label: "👥 Usuarios" },
       { id: "excel", label: "📁 Cargar Excel" },
-      { id: "recibos", label: "🖨️ Emitir Recibos" },
       { id: "config", label: "🔧 Configuración" },
     ] : []),
   ];
@@ -1099,7 +1102,7 @@ export default function AdminPage() {
         )}
 
         {/* ===== RECIBOS ===== */}
-        {seccion === "recibos" && session.rol === "admin" && (
+        {seccion === "recibos" && (
           <div>
             <h1 className="text-2xl font-bold text-[#1e293b] mb-4">🖨️ Emisión de Recibos en PDF</h1>
             {!periodos.length ? (
@@ -1111,7 +1114,6 @@ export default function AdminPage() {
                   <Label>Liquidaciones a incluir</Label>
                   <Input placeholder="Filtrar por período o año..." className="mb-2" onChange={e => {
                     const v = e.target.value.toLowerCase();
-                    (e.target as HTMLInputElement).setAttribute("data-filter", v);
                     const list = document.getElementById("periodos-list");
                     if (list) list.querySelectorAll("label").forEach(l => {
                       (l as HTMLElement).style.display = l.textContent?.toLowerCase().includes(v) ? "" : "none";
@@ -1127,11 +1129,35 @@ export default function AdminPage() {
                   </div>
                   {periodosSel.length > 0 && <p className="text-xs text-blue-600 mt-1">Seleccionados: {periodosSel.join(", ")}</p>}
                 </div>
+
+                {/* Filtro de emisión */}
+                <div className="mb-4">
+                  <Label>¿A quién emitir?</Label>
+                  <div className="flex gap-2 mt-1 mb-3">
+                    {(["todos", "sector", "persona"] as const).map(op => (
+                      <button key={op} onClick={() => { setReciboFiltroTipo(op); setReciboFiltroSector(""); setReciboFiltroCuil(""); }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${reciboFiltroTipo === op ? "bg-[#1e293b] text-white border-[#1e293b]" : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"}`}>
+                        {op === "todos" ? "Todos" : op === "sector" ? "Por sector" : "Por persona"}
+                      </button>
+                    ))}
+                  </div>
+                  {reciboFiltroTipo === "sector" && (
+                    <select value={reciboFiltroSector} onChange={e => setReciboFiltroSector(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                      <option value="">— Seleccioná un sector —</option>
+                      {sectores.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                    </select>
+                  )}
+                  {reciboFiltroTipo === "persona" && (
+                    <AsoSearch asociados={asociados} value={reciboFiltroCuil} onChange={setReciboFiltroCuil} label="Asociado" />
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div><Label>Título del recibo</Label><Input value={tituloRecibo} onChange={e => setTituloRecibo(e.target.value)} placeholder="JUNIO 2026" /></div>
                   <div><Label>Fecha de emisión</Label><Input type="date" value={fechaEm} onChange={e => setFechaEm(e.target.value)} /></div>
                 </div>
-                <Btn onClick={generarRecibos} disabled={!periodosSel.length || !tituloRecibo || genRecibos}>
+                <Btn onClick={generarRecibos} disabled={!periodosSel.length || !tituloRecibo || genRecibos || (reciboFiltroTipo === "sector" && !reciboFiltroSector) || (reciboFiltroTipo === "persona" && !reciboFiltroCuil)}>
                   {genRecibos ? "Generando..." : "🖨️ Generar Recibos PDF"}
                 </Btn>
               </Card>
