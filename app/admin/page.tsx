@@ -115,6 +115,8 @@ export default function AdminPage() {
   const [nuUser, setNuUser] = useState(""); const [nuPass, setNuPass] = useState(""); const [nuRol, setNuRol] = useState("auxiliar");
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [blanqUser, setBlanqUser] = useState(""); const [blanqPass, setBlanqPass] = useState("");
+  const [accesosSel, setAccesosSel] = useState<Set<string>>(new Set());
+  const [accesosFilter, setAccesosFilter] = useState("");
 
   // --- Excel Liquidaciones ---
   const [liqFile, setLiqFile] = useState<File | null>(null);
@@ -252,6 +254,17 @@ export default function AdminPage() {
       haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
       retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
     })).filter(f => f.cuil && f.cuil !== "null");
+    // Verificar CUILs que no están en el maestro
+    const cuilsLiq = [...new Set(filas.map(f => f.cuil))];
+    const cuilsMaestro = new Set(asociados.map(a => a.cuil));
+    const faltantes = cuilsLiq.filter(c => !cuilsMaestro.has(c));
+    if (faltantes.length > 0) {
+      const nombres = filas.filter(f => faltantes.includes(f.cuil) && f.nombre_completo).map(f => `${f.cuil} (${f.nombre_completo})`);
+      const uniqueNombres = [...new Set(nombres)];
+      const confirmar = confirm(`⚠️ ${faltantes.length} CUIL(s) de la liquidación NO están en el maestro de asociados:\n\n${uniqueNombres.slice(0, 10).join("\n")}${uniqueNombres.length > 10 ? `\n...y ${uniqueNombres.length - 10} más` : ""}\n\n¿Deseás cargar igual la liquidación? (No aparecerán en los reportes hasta que los agregues al maestro)`);
+      if (!confirmar) { setLiqCargando(false); return; }
+    }
+
     const liqRes = await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas, reemplazar: true }) });
     const liqData = await liqRes.json();
     if (liqData.errores?.length) {
@@ -473,16 +486,34 @@ export default function AdminPage() {
                   }}>🔢 Cargar Números de Asociado</Btn>
                 </Card>
                 <Card>
-                  <h3 className="font-bold text-[#1e293b] mb-2">👤 Crear Accesos al Portal de Asociados</h3>
-                  <p className="text-sm text-gray-500 mb-4">Crea un usuario de acceso para cada asociado del maestro. El usuario es el CUIL y la clave inicial es el número de DNI. Los asociados verán un aviso para cambiarla al ingresar.</p>
+                  <h3 className="font-bold text-[#1e293b] mb-2">👤 Crear / Blanquear Accesos al Portal</h3>
+                  <p className="text-sm text-gray-500 mb-3">Crea o blanquea la clave (DNI) de los asociados seleccionados. Si no seleccionás ninguno, aplica a todos.</p>
+                  <Input placeholder="Filtrar por nombre o CUIL..." value={accesosFilter} onChange={e => setAccesosFilter(e.target.value)} className="mb-2" />
+                  <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto mb-3">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50">
+                      <input type="checkbox" checked={accesosSel.size === asociados.length} onChange={e => setAccesosSel(e.target.checked ? new Set(asociados.map(a => a.cuil)) : new Set())} />
+                      <span className="text-xs font-medium text-gray-500">Seleccionar todos ({accesosSel.size} seleccionados)</span>
+                    </div>
+                    {asociados.filter(a => !accesosFilter || a.nombre_completo.toLowerCase().includes(accesosFilter.toLowerCase()) || a.cuil.includes(accesosFilter)).map(a => (
+                      <label key={a.cuil} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer border-b border-gray-50">
+                        <input type="checkbox" checked={accesosSel.has(a.cuil)} onChange={e => setAccesosSel(prev => { const s = new Set(prev); e.target.checked ? s.add(a.cuil) : s.delete(a.cuil); return s; })} />
+                        <span className="font-medium">{a.nombre_completo}</span>
+                        <span className="text-gray-400 text-xs ml-auto">{a.cuil}</span>
+                        {!a.dni && <span className="text-amber-500 text-xs">sin DNI</span>}
+                      </label>
+                    ))}
+                  </div>
                   <Btn variant="secondary" onClick={async () => {
                     try {
-                      const r = await fetch("/api/import-usuarios", { method: "POST" });
+                      const cuils = accesosSel.size > 0 ? [...accesosSel] : null;
+                      const body = cuils ? JSON.stringify({ cuils }) : undefined;
+                      const r = await fetch("/api/import-usuarios", { method: "POST", headers: { "Content-Type": "application/json" }, body });
                       const d = await r.json();
                       if (!r.ok) { setMsg({ text: `Error: ${d.error || r.status}`, ok: false }); return; }
-                      setMsg({ text: `✅ ${d.ok}/${d.total} accesos creados.${d.sinDni ? ` (${d.sinDni} sin DNI cargado)` : ""}${d.errores?.length ? ` (${d.errores.length} errores)` : ""}`, ok: true });
+                      setMsg({ text: `✅ ${d.ok}/${d.total} accesos creados/blanqueados.${d.sinDni ? ` (${d.sinDni} sin DNI)` : ""}`, ok: true });
+                      setAccesosSel(new Set());
                     } catch (e) { setMsg({ text: `Error de red: ${e}`, ok: false }); }
-                  }}>👤 Crear Accesos (clave = DNI)</Btn>
+                  }}>👤 {accesosSel.size > 0 ? `Aplicar a ${accesosSel.size} seleccionados` : "Aplicar a todos"}</Btn>
                 </Card>
               </div>
             )}

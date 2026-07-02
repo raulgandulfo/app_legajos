@@ -1,14 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const supabase = getSupabase();
 
-  const { data: asociados, error } = await supabase
-    .from("maestro_asociados")
-    .select("cuil, dni")
-    .eq("activo", true);
+  let cuils: string[] | null = null;
+  try {
+    const body = await req.json();
+    if (Array.isArray(body?.cuils)) cuils = body.cuils;
+  } catch { /* sin body = todos */ }
 
+  let query = supabase.from("maestro_asociados").select("cuil, dni").eq("activo", true);
+  if (cuils?.length) query = query.in("cuil", cuils);
+
+  const { data: asociados, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let ok = 0;
