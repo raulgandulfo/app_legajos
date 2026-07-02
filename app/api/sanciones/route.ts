@@ -8,10 +8,20 @@ export async function GET(req: NextRequest) {
   const reporte = searchParams.get("reporte");
 
   if (reporte) {
-    const { data } = await supabase
+    const desde = searchParams.get("desde");
+    const hasta = searchParams.get("hasta");
+    const filtroCuil = searchParams.get("cuil_filtro");
+
+    let query = supabase
       .from("sanciones")
-      .select("*, maestro_asociados(nombre_completo)")
+      .select("*, maestro_asociados!left(nombre_completo, nro_legajo)")
       .order("fecha_desde", { ascending: false });
+
+    if (filtroCuil) query = query.eq("cuil_asociado", filtroCuil);
+    if (desde) query = query.gte("fecha_desde", desde);
+    if (hasta) query = query.lte("fecha_desde", hasta);
+
+    const { data } = await query;
     return NextResponse.json(data || []);
   }
 

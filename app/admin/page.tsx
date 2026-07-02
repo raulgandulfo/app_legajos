@@ -856,12 +856,12 @@ export default function AdminPage() {
                     <div><Label>Hasta</Label><Input type="date" value={sanRepHasta} onChange={e => setSanRepHasta(e.target.value)} /></div>
                   </div>
                   <Btn variant="secondary" onClick={async () => {
-                    const r = await fetch("/api/sanciones?reporte=1");
-                    let d: Sancion[] = await r.json();
-                    if (sanRepCuil) d = d.filter(s => s.cuil_asociado === sanRepCuil);
-                    if (sanRepDesde) d = d.filter(s => s.fecha_desde >= sanRepDesde);
-                    if (sanRepHasta) d = d.filter(s => s.fecha_desde <= sanRepHasta);
-                    setSanReporte(d);
+                    const p = new URLSearchParams({ reporte: "1" });
+                    if (sanRepCuil) p.set("cuil_filtro", sanRepCuil);
+                    if (sanRepDesde) p.set("desde", sanRepDesde);
+                    if (sanRepHasta) p.set("hasta", sanRepHasta);
+                    const r = await fetch(`/api/sanciones?${p}`);
+                    setSanReporte(await r.json());
                   }}>🔍 Buscar</Btn>
                 </Card>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -938,13 +938,12 @@ export default function AdminPage() {
                     <div><Label>Hasta</Label><Input type="date" value={medRepHasta} onChange={e => setMedRepHasta(e.target.value)} /></div>
                   </div>
                   <Btn variant="secondary" onClick={async () => {
-                    const cuil = medRepCuil || medHistCuil;
-                    const url = cuil ? `/api/medico?cuil=${cuil}` : "/api/medico?reporte=1";
-                    const r = await fetch(url);
-                    let d: AusenciaMedica[] = await r.json();
-                    if (medRepDesde) d = d.filter(h => h.fecha >= medRepDesde);
-                    if (medRepHasta) d = d.filter(h => h.fecha <= medRepHasta);
-                    setMedHistorial(d);
+                    const p = new URLSearchParams({ reporte: "1" });
+                    if (medRepCuil) p.set("cuil_filtro", medRepCuil);
+                    if (medRepDesde) p.set("desde", medRepDesde);
+                    if (medRepHasta) p.set("hasta", medRepHasta);
+                    const r = await fetch(`/api/medico?${p}`);
+                    setMedHistorial(await r.json());
                   }}>🔍 Buscar</Btn>
                 </Card>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
