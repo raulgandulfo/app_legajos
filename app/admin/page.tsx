@@ -161,6 +161,9 @@ export default function AdminPage() {
   const [reciboPreview, setReciboPreview] = useState<{ total_cuils: number; por_sector: Record<string, { cantidad: number }> } | null>(null);
   const [reciboPreviewLoading, setReciboPreviewLoading] = useState(false);
 
+  // --- Mobile sidebar ---
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
       if (s?.rol === "admin" || s?.rol === "auxiliar") setSession(s);
@@ -376,10 +379,15 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#eef2f7] flex">
-      <aside className="w-56 bg-[#1e293b] text-[#e2e8f0] flex flex-col p-4 min-h-screen flex-shrink-0">
-        <div className="mb-4">
-          <div className="font-bold text-sm">⚙️ Panel de Control</div>
-          <div className="text-xs opacity-60">{session.username} · {session.rol.toUpperCase()}</div>
+      {/* Overlay mobile */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
+      <aside className={`fixed md:static z-40 top-0 left-0 h-full md:h-auto w-64 md:w-56 bg-[#1e293b] text-[#e2e8f0] flex flex-col p-4 min-h-screen flex-shrink-0 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <div className="font-bold text-sm">⚙️ Panel de Control</div>
+            <div className="text-xs opacity-60">{session.username} · {session.rol.toUpperCase()}</div>
+          </div>
+          <button className="md:hidden text-[#94a3b8] hover:text-white text-xl leading-none" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
         <hr className="border-[#334155] mb-3" />
 
@@ -418,7 +426,7 @@ export default function AdminPage() {
 
         <nav className="flex-1 space-y-1">
           {SECCIONES.map(s => (
-            <button key={s.id} onClick={() => { setSeccion(s.id); setMsg(null); }}
+            <button key={s.id} onClick={() => { setSeccion(s.id); setMsg(null); setSidebarOpen(false); }}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${seccion === s.id ? "bg-[#334155] text-white" : "hover:bg-[#263447] text-[#e2e8f0]"}`}>
               {s.label}
             </button>
@@ -428,7 +436,12 @@ export default function AdminPage() {
         <button onClick={logout} className="bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-medium w-full">Cerrar Sesión</button>
       </aside>
 
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-4 md:p-6 overflow-auto">
+        {/* Hamburger mobile */}
+        <button
+          className="md:hidden mb-4 p-2 rounded-lg bg-[#1e293b] text-white text-xl leading-none"
+          onClick={() => setSidebarOpen(true)}
+        >☰</button>
         <Alert msg={msg} />
 
         {/* ===== DASHBOARD ===== */}
