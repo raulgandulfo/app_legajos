@@ -43,9 +43,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const datos = await req.json();
-  // Si tiene fecha_salida, marcar como inactivo automáticamente
-  if (datos.fecha_salida) datos.activo = false;
-  else datos.activo = true;
+  // Normalizar campos de fecha: string vacío → null
+  if (!datos.fecha_salida) datos.fecha_salida = null;
+  if (!datos.fecha_ingreso) datos.fecha_ingreso = null;
+  datos.activo = !datos.fecha_salida;
   const { error } = await supabase.from("maestro_asociados").upsert(datos, { onConflict: "cuil" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
