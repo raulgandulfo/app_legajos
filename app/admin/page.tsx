@@ -62,6 +62,8 @@ export default function AdminPage() {
   // --- Asociados ---
   const [asoTab, setAsoTab] = useState("nuevo");
   const [filtro, setFiltro] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"activos" | "bajas" | "todos">("activos");
+  const [todosAsociados, setTodosAsociados] = useState<Asociado[]>([]);
   const [editAso, setEditAso] = useState<Asociado | null>(null);
   const [asoForm, setAsoForm] = useState<Partial<Asociado>>({});
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -490,7 +492,12 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold text-[#1e293b] mb-4">👤 Gestión de Asociados</h1>
             <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 w-fit">
               {[["nuevo","➕ Nuevo"],["buscar","🔍 Buscar"],["lista","📋 Listado"],["import","📥 Importar"]].map(([id,label]) => (
-                <button key={id} onClick={() => { setAsoTab(id); setMsg(null); setEditAso(null); }}
+                <button key={id} onClick={() => {
+                  setAsoTab(id); setMsg(null); setEditAso(null);
+                  if (id === "lista") {
+                    fetch("/api/asociados?all=1&incluir_inactivos=1").then(r => r.json()).then(setTodosAsociados);
+                  }
+                }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${asoTab === id ? "bg-white text-[#1e293b] shadow" : "text-gray-500"}`}>{label}</button>
               ))}
             </div>
@@ -536,16 +543,37 @@ export default function AdminPage() {
               </div>
             )}
 
-            {asoTab === "lista" && (
+            {asoTab === "lista" && (() => {
+              const listaFiltrada = todosAsociados.filter(a => {
+                if (filtroEstado === "activos" && !a.activo) return false;
+                if (filtroEstado === "bajas" && a.activo !== false) return false;
+                return true;
+              });
+              return (
               <div>
+                <div className="flex gap-2 mb-4 items-center flex-wrap">
+                  <span className="text-sm font-medium text-gray-600">Estado:</span>
+                  {([["activos","✅ Activos"],["bajas","🔴 Bajas"],["todos","📋 Todos"]] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => setFiltroEstado(val)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${filtroEstado === val ? "bg-[#1e293b] text-white border-[#1e293b]" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
+                      {label}
+                    </button>
+                  ))}
+                  <span className="text-xs text-gray-400 ml-2">{listaFiltrada.length} asociados</span>
+                </div>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600"><tr>
-                      {["CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Est. Civil","Hijos","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
+                      {["Estado","CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Est. Civil","Hijos","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {asociados.map(a => (
-                        <tr key={a.cuil} className={`border-t border-gray-100 hover:bg-gray-50 ${a.activo === false ? "opacity-50" : ""}`}>
+                      {listaFiltrada.map(a => (
+                        <tr key={a.cuil} className={`border-t border-gray-100 hover:bg-gray-50 ${a.activo === false ? "bg-red-50" : ""}`}>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${a.activo !== false ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                              {a.activo !== false ? "Activo" : "Baja"}
+                            </span>
+                          </td>
                           <td className="px-3 py-2">{a.cuil}</td>
                           <td className="px-3 py-2">{a.nro_asociado}</td>
                           <td className="px-3 py-2">{a.nro_legajo}</td>
@@ -568,12 +596,13 @@ export default function AdminPage() {
                 <button
                   className="mt-3 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
                   onClick={() => {
-                    const csv = ["CUIL,Nro,Nombre,Sector,Categoría,Ingreso", ...asociados.map(a => `${a.cuil},${a.nro_asociado || ""},${a.nombre_completo},${a.sector || ""},${a.categoria || ""},${a.fecha_ingreso || ""}`)].join("\n");
+                    const csv = ["Estado,CUIL,Nro,Nombre,Sector,Categoría,Ingreso,Salida", ...listaFiltrada.map(a => `${a.activo !== false ? "Activo" : "Baja"},${a.cuil},${a.nro_asociado || ""},${a.nombre_completo},${a.sector || ""},${a.categoria || ""},${a.fecha_ingreso || ""},${a.fecha_salida || ""}`)].join("\n");
                     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
                     const el = document.createElement("a"); el.href = url; el.download = "asociados.csv"; el.click();
                   }}>📥 Descargar CSV</button>
               </div>
-            )}
+              );
+            })()}
 
             {asoTab === "import" && (
               <div className="space-y-4">
