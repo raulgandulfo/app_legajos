@@ -145,8 +145,8 @@ export default function AdminPage() {
   const [repSector, setRepSector] = useState("");
   const [repLiqCuil, setRepLiqCuil] = useState("");
   const [repLiqPeriodos, setRepLiqPeriodos] = useState<string[]>([]);
-  const [repLiqPeriodo, setRepLiqPeriodo] = useState("");
-  const [repLiqRows, setRepLiqRows] = useState<{ descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string }[]>([]);
+  const [repLiqPeriodosSel, setRepLiqPeriodosSel] = useState<string[]>([]);
+  const [repLiqRows, setRepLiqRows] = useState<{ descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string; periodo?: string }[]>([]);
   const [repLiqLoading, setRepLiqLoading] = useState(false);
 
   // --- Dashboard ---
@@ -174,13 +174,14 @@ export default function AdminPage() {
   }, []);
 
   const loadBase = useCallback(async () => {
-    const [a, s, c, p] = await Promise.all([
+    const [a, todos, s, c, p] = await Promise.all([
       fetch("/api/asociados?all=1").then(r => r.json()),
+      fetch("/api/asociados?all=1&incluir_inactivos=1").then(r => r.json()),
       fetch("/api/sectores").then(r => r.json()),
       fetch("/api/asociados?categorias=1").then(r => r.json()),
       fetch("/api/liquidaciones?list=1").then(r => r.json()),
     ]);
-    setAsociados(a); setSectores(s); setCategorias(c); setPeriodos(p);
+    setAsociados(a); setTodosAsociados(todos); setSectores(s); setCategorias(c); setPeriodos(p);
     if (a.length) { setPreCuil(a[0].cuil); setSanCuil(a[0].cuil); setMedCuil(a[0].cuil); setMedHistCuil(a[0].cuil); setPreEditCuil(a[0].cuil); }
   }, []);
 
@@ -1121,70 +1122,83 @@ export default function AdminPage() {
             <div className="mt-6">
               <h3 className="font-bold text-[#1e293b] mb-3">📋 Liquidación por Asociado</h3>
               <Card>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <AsoSearch asociados={asociados} value={repLiqCuil} onChange={async cuil => {
+                    <AsoSearch asociados={[...asociados, ...todosAsociados.filter(a => !a.activo && !asociados.find(b => b.cuil === a.cuil))]} value={repLiqCuil} onChange={async cuil => {
                       setRepLiqCuil(cuil);
                       setRepLiqRows([]);
-                      setRepLiqPeriodo("");
+                      setRepLiqPeriodosSel([]);
                       if (!cuil) { setRepLiqPeriodos([]); return; }
                       const r = await fetch(`/api/liquidaciones?cuil=${cuil}`);
                       const ps: string[] = await r.json();
                       setRepLiqPeriodos(ps);
-                      if (ps.length) setRepLiqPeriodo(ps[0]);
                     }} label="Asociado" />
                   </div>
                   <div>
-                    <Label>Período</Label>
-                    <Select value={repLiqPeriodo} onChange={e => setRepLiqPeriodo(e.target.value)} disabled={!repLiqPeriodos.length}>
-                      <option value="">— Seleccionar —</option>
-                      {repLiqPeriodos.map(p => <option key={p}>{p}</option>)}
-                    </Select>
-                  </div>
-                  <div className="flex items-end">
-                    <Btn disabled={!repLiqCuil || !repLiqPeriodo || repLiqLoading} onClick={async () => {
-                      setRepLiqLoading(true);
-                      const r = await fetch(`/api/liquidaciones?cuil=${repLiqCuil}&periodo=${encodeURIComponent(repLiqPeriodo)}`);
-                      setRepLiqRows(await r.json());
-                      setRepLiqLoading(false);
-                    }}>{repLiqLoading ? "Buscando..." : "🔍 Ver detalle"}</Btn>
+                    <Label>Períodos (seleccioná uno o más)</Label>
+                    {repLiqPeriodos.length === 0
+                      ? <p className="text-xs text-gray-400 mt-2">Seleccioná un asociado para ver sus períodos</p>
+                      : <div className="border border-gray-200 rounded-lg max-h-36 overflow-y-auto">
+                          {repLiqPeriodos.map(p => (
+                            <label key={p} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer border-b border-gray-50">
+                              <input type="checkbox" checked={repLiqPeriodosSel.includes(p)}
+                                onChange={e => setRepLiqPeriodosSel(prev => e.target.checked ? [...prev, p] : prev.filter(x => x !== p))} />
+                              {p}
+                            </label>
+                          ))}
+                        </div>
+                    }
                   </div>
                 </div>
+                <Btn disabled={!repLiqCuil || repLiqPeriodosSel.length === 0 || repLiqLoading} onClick={async () => {
+                  setRepLiqLoading(true);
+                  const resultados = await Promise.all(
+                    repLiqPeriodosSel.map(p => fetch(`/api/liquidaciones?cuil=${repLiqCuil}&periodo=${encodeURIComponent(p)}`).then(r => r.json()).then((rows: { descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string }[]) => rows.map(row => ({ ...row, periodo: p }))))
+                  );
+                  setRepLiqRows(resultados.flat());
+                  setRepLiqLoading(false);
+                }}>{repLiqLoading ? "Buscando..." : "🔍 Ver detalle"}</Btn>
 
                 {repLiqRows.length > 0 && (() => {
                   const tiposValidos = ["Remunerativo", "No Remunerativo", "Retención", "Redondeo"];
-                  const detalle = repLiqRows.filter(r => tiposValidos.includes(r.tipo_concepto)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, "es"));
-                  const neto = repLiqRows[0]?.neto || detalle.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
-                  const aso = asociados.find(a => a.cuil === repLiqCuil);
+                  const aso = [...asociados, ...todosAsociados].find(a => a.cuil === repLiqCuil);
+                  const periodosMostrados = repLiqPeriodosSel.length > 0 ? repLiqPeriodosSel : [...new Set(repLiqRows.map(r => r.periodo).filter(Boolean))];
                   return (
-                    <div>
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="mt-4">
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-4 p-3 bg-gray-50 rounded-lg">
                         <span><span className="font-medium">Asociado:</span> {aso?.nombre_completo}</span>
                         <span><span className="font-medium">Sector:</span> {repLiqRows[0]?.sector}</span>
                         <span><span className="font-medium">Categoría:</span> {repLiqRows[0]?.categoria}</span>
                         {repLiqRows[0]?.jornal_basico ? <span><span className="font-medium">Jornal básico:</span> ${fmt(repLiqRows[0].jornal_basico)}</span> : null}
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr><th className="text-left px-4 py-2">Concepto</th><th className="px-4 py-2 text-center">Cant.</th><th className="text-right px-4 py-2">Importe ($)</th></tr>
-                          </thead>
-                          <tbody>
-                            {detalle.map((r, i) => (
-                              <tr key={i} className="border-t border-gray-100">
-                                <td className="px-4 py-1.5">{r.descripcion}</td>
-                                <td className="px-4 py-1.5 text-center">{r.cantidad || ""}</td>
-                                <td className={`px-4 py-1.5 text-right font-mono ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
-                                  {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="mt-3 text-right font-bold text-lg text-[#1e293b]">
-                        NETO: $ {fmt(neto)}
-                      </div>
+                      {periodosMostrados.map(p => {
+                        const filas = repLiqRows.filter(r => r.periodo === p && tiposValidos.includes(r.tipo_concepto)).sort((a, b) => a.descripcion.localeCompare(b.descripcion, "es"));
+                        const neto = repLiqRows.find(r => r.periodo === p)?.neto || filas.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
+                        return (
+                          <div key={p} className="mb-6">
+                            <h4 className="font-semibold text-sm text-[#1e293b] mb-2 px-1">📅 {p}</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                  <tr><th className="text-left px-4 py-2">Concepto</th><th className="px-4 py-2 text-center">Cant.</th><th className="text-right px-4 py-2">Importe ($)</th></tr>
+                                </thead>
+                                <tbody>
+                                  {filas.map((r, i) => (
+                                    <tr key={i} className="border-t border-gray-100">
+                                      <td className="px-4 py-1.5">{r.descripcion}</td>
+                                      <td className="px-4 py-1.5 text-center">{r.cantidad || ""}</td>
+                                      <td className={`px-4 py-1.5 text-right font-mono ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
+                                        {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="mt-2 text-right font-bold text-base text-[#1e293b]">NETO: $ {fmt(neto)}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })()}
