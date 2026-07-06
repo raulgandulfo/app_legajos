@@ -337,9 +337,12 @@ export default function AdminPage() {
     setGenRecibos(false);
   }
 
-  const filtrados = asociados.filter(a =>
-    !filtro || a.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) || a.cuil.includes(filtro)
-  ).slice(0, 25);
+  const fuenteBuscar = todosAsociados.length > 0 ? todosAsociados : asociados;
+  const filtrados = fuenteBuscar.filter(a => {
+    if (filtroEstado === "activos" && !a.activo) return false;
+    if (filtroEstado === "bajas" && a.activo !== false) return false;
+    return !filtro || a.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) || a.cuil.includes(filtro);
+  }).slice(0, 25);
 
   const SECCIONES = [
     { id: "dashboard", label: "🏠 Inicio" },
@@ -494,7 +497,7 @@ export default function AdminPage() {
               {[["nuevo","➕ Nuevo"],["buscar","🔍 Buscar"],["lista","📋 Listado"],["import","📥 Importar"]].map(([id,label]) => (
                 <button key={id} onClick={() => {
                   setAsoTab(id); setMsg(null); setEditAso(null);
-                  if (id === "lista") {
+                  if (id === "lista" || id === "buscar") {
                     fetch("/api/asociados?all=1&incluir_inactivos=1").then(r => r.json()).then(setTodosAsociados);
                   }
                 }}
@@ -511,14 +514,28 @@ export default function AdminPage() {
 
             {asoTab === "buscar" && (
               <div>
+                <div className="flex gap-2 mb-3 items-center flex-wrap">
+                  <span className="text-sm font-medium text-gray-600">Estado:</span>
+                  {([["activos","✅ Activos"],["bajas","🔴 Bajas"],["todos","📋 Todos"]] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => setFiltroEstado(val)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${filtroEstado === val ? "bg-[#1e293b] text-white border-[#1e293b]" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <div className="mb-4"><Input placeholder="Filtrar por nombre o CUIL..." value={filtro} onChange={e => setFiltro(e.target.value)} /></div>
                 <div className="text-xs text-gray-500 mb-2">{filtrados.length} resultado(s)</div>
                 <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr><th className="text-left px-4 py-3">Nombre</th><th className="px-4 py-3">CUIL</th><th className="px-4 py-3">Sector</th><th className="px-4 py-3"></th></tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr><th className="text-left px-4 py-3">Estado</th><th className="text-left px-4 py-3">Nombre</th><th className="px-4 py-3">CUIL</th><th className="px-4 py-3">Sector</th><th className="px-4 py-3"></th></tr></thead>
                     <tbody>
                       {filtrados.map(a => (
-                        <tr key={a.cuil} className="border-t border-gray-100">
+                        <tr key={a.cuil} className={`border-t border-gray-100 ${a.activo === false ? "bg-red-50" : ""}`}>
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${a.activo !== false ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                              {a.activo !== false ? "Activo" : "Baja"}
+                            </span>
+                          </td>
                           <td className="px-4 py-2 font-medium">{a.nombre_completo}</td>
                           <td className="px-4 py-2 text-center">{a.cuil}</td>
                           <td className="px-4 py-2 text-center">{a.sector || "-"}</td>
