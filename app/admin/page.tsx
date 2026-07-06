@@ -1504,8 +1504,19 @@ function AsoForm({ sectores, categorias, inicial, onSave }: {
       <div><Label>Fecha de Ingreso</Label><Input type="date" value={form.fecha_ingreso || ""} onChange={f("fecha_ingreso")} /></div>
       <div>
         <Label>Fecha de Salida (baja)</Label>
-        <Input type="date" value={form.fecha_salida || ""} onChange={f("fecha_salida")} />
-        {form.fecha_salida && <p className="text-xs text-amber-600 mt-1">⚠️ Al guardar se marcará como inactivo</p>}
+        <div className="flex gap-2 items-center">
+          <Input type="date" value={form.fecha_salida || ""} onChange={f("fecha_salida")} />
+          {form.fecha_salida && (
+            <button type="button" onClick={() => setForm(prev => ({ ...prev, fecha_salida: "" }))}
+              className="px-2 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 text-xs font-semibold whitespace-nowrap">
+              ✅ Reactivar
+            </button>
+          )}
+        </div>
+        {form.fecha_salida
+          ? <p className="text-xs text-amber-600 mt-1">⚠️ Al guardar se marcará como inactivo</p>
+          : <p className="text-xs text-green-600 mt-1">✅ Sin fecha de salida = Activo</p>
+        }
       </div>
       <div><Label>Estado Civil</Label>
         <select className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-blue-400"
