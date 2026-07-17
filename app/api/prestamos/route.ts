@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (reporte) {
     let query = supabase
       .from("prestamos")
-      .select("*, maestro_asociados(cuil, nro_asociado, nombre_completo), prestamos_cuotas(*)")
+      .select("*, maestro_asociados(cuil, nro_asociado, nro_legajo, nombre_completo), prestamos_cuotas(*)")
       .order("fecha_otorgamiento", { ascending: false });
 
     if (fechaDesde) query = query.gte("fecha_otorgamiento", fechaDesde);
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   if (cuil) {
     const { data } = await supabase
       .from("prestamos")
-      .select("*, prestamos_cuotas(*)")
+      .select("*, maestro_asociados(cuil, nro_asociado, nro_legajo, nombre_completo), prestamos_cuotas(*)")
       .eq("cuil_asociado", cuil)
       .order("fecha_otorgamiento", { ascending: false });
     return NextResponse.json(data || []);

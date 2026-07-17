@@ -810,17 +810,19 @@ export default function AdminPage() {
                       </div>
                       <Btn variant="secondary" onClick={async () => {
                         const XLSX = await import("xlsx");
-                        const rows = preRepData.flatMap(p => (p.prestamos_cuotas || []).map(c => ({
-                          Legajo: (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
-                          Nombre: p.maestro_asociados?.nombre_completo || "",
-                          CUIL: p.cuil_asociado,
-                          Otorgamiento: p.fecha_otorgamiento,
-                          "Monto Total": p.monto_total,
-                          "Cuota N°": c.numero_cuota,
-                          "Monto Cuota": c.monto_cuota,
-                          Vencimiento: c.fecha_vencimiento,
-                          Estado: c.estado,
-                        })));
+                        const fechas = [...new Set(preRepData.flatMap(p => (p.prestamos_cuotas || []).map(c => c.fecha_vencimiento)))].sort();
+                        const rows = preRepData.map(p => {
+                          const row: Record<string, string | number> = {
+                            "Nº LEGAJO": (p.maestro_asociados as { nro_legajo?: string })?.nro_legajo || (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
+                            "NOMBRE": p.maestro_asociados?.nombre_completo || "",
+                            "CODIGO": "0409",
+                          };
+                          fechas.forEach(f => {
+                            const cuota = (p.prestamos_cuotas || []).find(c => c.fecha_vencimiento === f);
+                            row[f] = cuota ? cuota.monto_cuota : "";
+                          });
+                          return row;
+                        });
                         const ws = XLSX.utils.json_to_sheet(rows);
                         const wb = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(wb, ws, "Préstamos");
@@ -849,19 +851,21 @@ export default function AdminPage() {
                       if (preRepVtoHasta) params.set("vto_hasta", preRepVtoHasta);
                       const r = await fetch(`/api/prestamos?${params}`);
                       const d: Prestamo[] = await r.json();
+                      if (!d.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setPreRepLoading(false); return; }
                       const XLSX = await import("xlsx");
-                      const rows = d.flatMap(p => (p.prestamos_cuotas || []).map(c => ({
-                        Legajo: (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
-                        Nombre: p.maestro_asociados?.nombre_completo || "",
-                        CUIL: p.cuil_asociado,
-                        Otorgamiento: p.fecha_otorgamiento,
-                        "Monto Total": p.monto_total,
-                        "Cuota N°": c.numero_cuota,
-                        "Monto Cuota": c.monto_cuota,
-                        Vencimiento: c.fecha_vencimiento,
-                        Estado: c.estado,
-                      })));
-                      if (!rows.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setPreRepLoading(false); return; }
+                      const fechas = [...new Set(d.flatMap(p => (p.prestamos_cuotas || []).map(c => c.fecha_vencimiento)))].sort();
+                      const rows = d.map(p => {
+                        const row: Record<string, string | number> = {
+                          "Nº LEGAJO": (p.maestro_asociados as { nro_legajo?: string })?.nro_legajo || (p.maestro_asociados as { nro_asociado?: string })?.nro_asociado || "",
+                          "NOMBRE": p.maestro_asociados?.nombre_completo || "",
+                          "CODIGO": "0409",
+                        };
+                        fechas.forEach(f => {
+                          const cuota = (p.prestamos_cuotas || []).find(c => c.fecha_vencimiento === f);
+                          row[f] = cuota ? cuota.monto_cuota : "";
+                        });
+                        return row;
+                      });
                       const ws = XLSX.utils.json_to_sheet(rows);
                       const wb = XLSX.utils.book_new();
                       XLSX.utils.book_append_sheet(wb, ws, "Préstamos");
