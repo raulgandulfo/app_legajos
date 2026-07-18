@@ -36,6 +36,7 @@ export default function AsociadoPage() {
   const [historial, setHistorial] = useState<Ausencia[]>([]);
   const [newPass, setNewPass] = useState(""); const [newPass2, setNewPass2] = useState("");
   const [asociado, setAsociado] = useState<{ nombre_completo?: string } | null>(null);
+  const [descargando, setDescargando] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
@@ -209,9 +210,39 @@ export default function AsociadoPage() {
           <div>
             {!periodos.length ? <Card><p className="text-gray-500">Todavía no hay liquidaciones disponibles.</p></Card> : (
               <>
-                <select className="mb-4 px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => setPeriodoSel(e.target.value)}>
-                  {periodos.map(p => <option key={p}>{p}</option>)}
-                </select>
+                <div className="flex gap-3 items-center mb-4 flex-wrap">
+                  <select className="px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => setPeriodoSel(e.target.value)}>
+                    {periodos.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                  <button
+                    disabled={!periodoSel || descargando}
+                    onClick={async () => {
+                      setDescargando(true);
+                      try {
+                        const r = await fetch("/api/recibos", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            periodos: [periodoSel],
+                            titulo: periodoSel,
+                            fecha: new Date().toLocaleDateString("es-AR"),
+                            filtroTipo: "persona",
+                            filtroCuil: session!.cuil,
+                          }),
+                        });
+                        if (!r.ok) { const e = await r.json(); alert(e.error || "Error al generar el recibo"); return; }
+                        const blob = await r.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = `Recibo_${periodoSel.replace(/\s+/g, "_")}.zip`; a.click();
+                        URL.revokeObjectURL(url);
+                      } finally { setDescargando(false); }
+                    }}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    {descargando ? "Generando..." : "📄 Descargar Recibo"}
+                  </button>
+                </div>
                 {liqRows[0] && (
                   <Card>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
