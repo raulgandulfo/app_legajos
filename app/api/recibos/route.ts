@@ -82,12 +82,20 @@ export async function GET(req: NextRequest) {
   const rows = await queryAllRows(supabase, periodos);
   if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 404 });
 
-  const byCuil: Record<string, { sector: string; nombre: string; neto: number }> = {};
+  // Agrupar por CUIL+período para sumar entre períodos (dentro de un período tomar el max)
+  const byCuilPer: Record<string, Record<string, { sector: string; nombre: string; neto: number }>> = {};
   for (const r of (rows || [])) {
     const cuil = String(r.cuil || "").replace(/-/g, "").trim();
     if (!cuil) continue;
-    if (!byCuil[cuil]) byCuil[cuil] = { sector: r.sector || "General", nombre: r.nombre_completo || cuil, neto: r.neto || 0 };
-    if ((r.neto ?? 0) > byCuil[cuil].neto) byCuil[cuil].neto = r.neto ?? 0;
+    const per = r.periodo || "";
+    if (!byCuilPer[cuil]) byCuilPer[cuil] = {};
+    if (!byCuilPer[cuil][per]) byCuilPer[cuil][per] = { sector: r.sector || "General", nombre: r.nombre_completo || cuil, neto: 0 };
+    if ((r.neto ?? 0) > byCuilPer[cuil][per].neto) byCuilPer[cuil][per].neto = r.neto ?? 0;
+  }
+  const byCuil: Record<string, { sector: string; nombre: string; neto: number }> = {};
+  for (const [cuil, porPer] of Object.entries(byCuilPer)) {
+    const vals = Object.values(porPer);
+    byCuil[cuil] = { sector: vals[0].sector, nombre: vals[0].nombre, neto: vals.reduce((s, v) => s + v.neto, 0) };
   }
 
   const resumen: Record<string, { cuil: string; nombre: string; neto: number }[]> = {};
@@ -153,31 +161,29 @@ export async function POST(req: NextRequest) {
     const rawSec = first.sector || grupo.find(r => r.sector)?.sector || asoMap[cuil]?.sector || "General";
     const secKey = normSec(rawSec);
     const nro = asoMap[cuil]?.nro_asociado || first.nro_legajo || "S/D";
-    // Guardar nombre de display del sector (primer valor encontrado)
     if (!sectorDisplay[secKey]) sectorDisplay[secKey] = rawSec;
 
-    // Python: drop_duplicates(subset='Liquidación') para evitar duplicar haberes
-    // Tomamos el max de haberes_rem+haberes_no_rem (repetido en cada fila, pero único por período)
-    const totalHaberes = safeMax(grupo.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
-    const maxNeto = safeMax(grupo.map(r => r.neto || 0));
+    // Agrupar por período: dentro de cada período los campos haberes/neto se repiten
+    // en cada fila de concepto → tomar el max por período, luego sumar entre períodos
+    const periodosUnicos = [...new Set(grupo.map(r => r.periodo || ""))];
+    let totalHaberes = 0;
+    let netoFinal = 0;
+    let puntos = 0;
+    const descuentosMap: Record<string, number> = {};
 
-    // PUNTOS: fila con descripcion que contenga "PUNTOS" y tipo "Puente"
-    const puntosRows = grupo.filter(r => (r.descripcion || "").toUpperCase().includes("PUNTO"));
-    const puntos = puntosRows.reduce((s, r) => s + (r.importe || 0), 0);
-    // Python: int(total_haberes / puntos)
+    for (const per of periodosUnicos) {
+      const filasPerido = grupo.filter(r => (r.periodo || "") === per);
+      totalHaberes += safeMax(filasPerido.map(r => (r.haberes_rem || 0) + (r.haberes_no_rem || 0)));
+      netoFinal += safeMax(filasPerido.map(r => r.neto || 0));
+      puntos += filasPerido.filter(r => (r.descripcion || "").toUpperCase().includes("PUNTO"))
+        .reduce((s, r) => s + (r.importe || 0), 0);
+      filasPerido.filter(r => (r.tipo_concepto || "").toLowerCase().includes("retenci") || (r.retenciones || 0) > 0)
+        .filter(r => (r.retenciones || 0) > 0)
+        .forEach(r => { descuentosMap[r.descripcion || ""] = (descuentosMap[r.descripcion || ""] || 0) + (r.retenciones || 0); });
+    }
+
     const vPunto = puntos > 0 && totalHaberes > 0 ? Math.floor(totalHaberes / puntos) : 0;
-
-    // Retenciones: filas con tipo_concepto = "Retención" tienen el monto en 'retenciones'
-    const descRows = grupo.filter(r =>
-      (r.tipo_concepto || "").toLowerCase().includes("retenci") ||
-      (r.retenciones || 0) > 0
-    );
-    const totalDesc = descRows.reduce((s, r) => s + (r.retenciones || 0), 0);
-    const descuentos = descRows
-      .filter(r => (r.retenciones || 0) > 0)
-      .map(r => ({ desc: sp(r.descripcion || ""), monto: r.retenciones || 0 }));
-
-    const netoFinal = maxNeto > 0 ? maxNeto : totalHaberes - totalDesc;
+    const descuentos = Object.entries(descuentosMap).map(([desc, monto]) => ({ desc: sp(desc), monto }));
 
     if (!bySector[secKey]) bySector[secKey] = [];
     bySector[secKey].push({ cuil, nombre, cat, sec: rawSec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
