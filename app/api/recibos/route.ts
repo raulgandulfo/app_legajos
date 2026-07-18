@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
-  const { periodos, titulo, fecha, filtroTipo, filtroSector, filtroCuil } = await req.json();
+  const { periodos, titulo, fecha, filtroTipo, filtroSector, filtroCuil, formato } = await req.json();
 
   let rows = await queryAllRows(supabase, periodos);
   if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
@@ -194,6 +194,7 @@ export async function POST(req: NextRequest) {
   const logoBytes = existsSync(logoPath) ? readFileSync(logoPath) : null;
 
   const zip = new JSZip();
+  const pdfBytesAll: { name: string; bytes: Uint8Array }[] = [];
 
   for (const [secKey, recibos] of Object.entries(bySector)) {
     const sec = sectorDisplay[secKey] || secKey;
@@ -268,6 +269,24 @@ export async function POST(req: NextRequest) {
 
     const pdfBytes = await pdfDoc.save();
     zip.file(`Recibos_${sec.replace(/\s+/g, "_")}.pdf`, pdfBytes);
+    pdfBytesAll.push({ name: sec, bytes: pdfBytes });
+  }
+
+  // Si se pide PDF directo, fusionar todos los PDFs en uno y devolver sin ZIP
+  if (formato === "pdf") {
+    const merged = await PDFDocument.create();
+    for (const { bytes } of pdfBytesAll) {
+      const src = await PDFDocument.load(bytes);
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach(p => merged.addPage(p));
+    }
+    const mergedBytes = await merged.save();
+    return new NextResponse(mergedBytes as unknown as BodyInit, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="Recibo_${titulo.replace(/\s+/g, "_")}.pdf"`,
+      },
+    });
   }
 
   const zipBytes = await zip.generateAsync({ type: "uint8array" });

@@ -228,13 +228,14 @@ export default function AsociadoPage() {
                             fecha: new Date().toLocaleDateString("es-AR"),
                             filtroTipo: "persona",
                             filtroCuil: session!.cuil,
+                            formato: "pdf",
                           }),
                         });
                         if (!r.ok) { const e = await r.json(); alert(e.error || "Error al generar el recibo"); return; }
                         const blob = await r.blob();
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
-                        a.href = url; a.download = `Recibo_${periodoSel.replace(/\s+/g, "_")}.zip`; a.click();
+                        a.href = url; a.download = `Recibo_${periodoSel.replace(/\s+/g, "_")}.pdf`; a.click();
                         URL.revokeObjectURL(url);
                       } finally { setDescargando(false); }
                     }}
