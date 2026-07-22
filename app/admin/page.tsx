@@ -113,6 +113,19 @@ export default function AdminPage() {
   const [medRepDesde, setMedRepDesde] = useState("");
   const [medRepHasta, setMedRepHasta] = useState("");
 
+  // --- Capacitaciones ---
+  const [capTab, setCapTab] = useState("nueva");
+  const [capCuil, setCapCuil] = useState("");
+  const [capTitulo, setCapTitulo] = useState("");
+  const [capFecha, setCapFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [capDuracion, setCapDuracion] = useState("");
+  const [capResultado, setCapResultado] = useState("Aprobado");
+  const [capObs, setCapObs] = useState("");
+  const [capReporte, setCapReporte] = useState<{ id: number; cuil_asociado: string; titulo: string; fecha: string; duracion_hs?: number; resultado?: string; observaciones?: string; maestro_asociados?: { nombre_completo: string } }[]>([]);
+  const [capRepCuil, setCapRepCuil] = useState("");
+  const [capRepDesde, setCapRepDesde] = useState("");
+  const [capRepHasta, setCapRepHasta] = useState("");
+
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
   const [nuUser, setNuUser] = useState(""); const [nuPass, setNuPass] = useState(""); const [nuRol, setNuRol] = useState("auxiliar");
@@ -350,6 +363,7 @@ export default function AdminPage() {
     { id: "asociados", label: "👤 Asociados" },
     { id: "prestamos", label: "💰 Préstamos" },
     { id: "sanciones", label: "⚠️ Sanciones" },
+    { id: "capacitaciones", label: "🎓 Capacitaciones" },
     { id: "inasistencias", label: "🏥 Inasist. Médica" },
     { id: "reportes", label: "📊 Reportes" },
     { id: "recibos", label: "🖨️ Emitir Recibos" },
@@ -613,11 +627,23 @@ export default function AdminPage() {
                 </div>
                 <button
                   className="mt-3 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
-                  onClick={() => {
-                    const csv = ["Estado,CUIL,Nro,Nombre,Sector,Categoría,Ingreso,Salida", ...listaFiltrada.map(a => `${a.activo !== false ? "Activo" : "Baja"},${a.cuil},${a.nro_asociado || ""},${a.nombre_completo},${a.sector || ""},${a.categoria || ""},${a.fecha_ingreso || ""},${a.fecha_salida || ""}`)].join("\n");
-                    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-                    const el = document.createElement("a"); el.href = url; el.download = "asociados.csv"; el.click();
-                  }}>📥 Descargar CSV</button>
+                  onClick={async () => {
+                    const XLSX = await import("xlsx");
+                    const rows = listaFiltrada.map(a => ({
+                      Estado: a.activo !== false ? "Activo" : "Baja",
+                      CUIL: a.cuil,
+                      Nro: a.nro_asociado || "",
+                      Nombre: a.nombre_completo,
+                      Sector: a.sector || "",
+                      Categoria: a.categoria || "",
+                      Ingreso: a.fecha_ingreso || "",
+                      Salida: a.fecha_salida || "",
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Asociados");
+                    XLSX.writeFile(wb, "asociados.xlsx");
+                  }}>📊 Descargar XLSX</button>
               </div>
               );
             })()}
@@ -973,6 +999,108 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ===== CAPACITACIONES ===== */}
+        {seccion === "capacitaciones" && (
+          <div>
+            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">🎓 Capacitaciones</h1>
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 w-fit">
+              {[["nueva","➕ Registrar"],["reporte","📋 Reporte"]].map(([id,label]) => (
+                <button key={id} onClick={() => setCapTab(id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${capTab === id ? "bg-white text-[#1e293b] shadow" : "text-gray-500"}`}>{label}</button>
+              ))}
+            </div>
+            {capTab === "nueva" && (
+              <Card>
+                <div className="space-y-4">
+                  <AsoSearch asociados={asociados} value={capCuil} onChange={setCapCuil} label="Asociado" />
+                  <div><Label>Título / Descripción de la capacitación</Label><Input value={capTitulo} onChange={e => setCapTitulo(e.target.value)} placeholder="Ej: Seguridad e Higiene, Primeros Auxilios..." /></div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div><Label>Fecha</Label><Input type="date" value={capFecha} onChange={e => setCapFecha(e.target.value)} /></div>
+                    <div><Label>Duración (hs)</Label><Input type="number" min={0} step={0.5} value={capDuracion} onChange={e => setCapDuracion(e.target.value)} placeholder="Ej: 8" /></div>
+                    <div><Label>Resultado</Label>
+                      <Select value={capResultado} onChange={e => setCapResultado(e.target.value)}>
+                        {["Aprobado","Desaprobado","Asistió","No asistió"].map(t => <option key={t}>{t}</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label>Observaciones</Label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none" rows={3} value={capObs} onChange={e => setCapObs(e.target.value)} /></div>
+                  <Btn onClick={async () => {
+                    if (!capTitulo) { setMsg({ text: "Ingresá el título de la capacitación.", ok: false }); return; }
+                    if (!capCuil) { setMsg({ text: "Seleccioná un asociado.", ok: false }); return; }
+                    await fetch("/api/capacitaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: capCuil, titulo: capTitulo, fecha: capFecha, duracion_hs: capDuracion ? parseFloat(capDuracion) : null, resultado: capResultado, observaciones: capObs }) });
+                    setMsg({ text: "Capacitación registrada correctamente.", ok: true }); setCapTitulo(""); setCapObs(""); setCapDuracion("");
+                  }}>📝 Registrar Capacitación</Btn>
+                </div>
+              </Card>
+            )}
+            {capTab === "reporte" && (
+              <div>
+                <Card>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div><AsoSearch asociados={asociados} value={capRepCuil} onChange={setCapRepCuil} label="Filtrar asociado" /></div>
+                    <div><Label>Desde</Label><Input type="date" value={capRepDesde} onChange={e => setCapRepDesde(e.target.value)} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={capRepHasta} onChange={e => setCapRepHasta(e.target.value)} /></div>
+                  </div>
+                  <Btn variant="secondary" onClick={async () => {
+                    const p = new URLSearchParams({ reporte: "1" });
+                    if (capRepCuil) p.set("cuil_filtro", capRepCuil);
+                    if (capRepDesde) p.set("desde", capRepDesde);
+                    if (capRepHasta) p.set("hasta", capRepHasta);
+                    const r = await fetch(`/api/capacitaciones?${p}`);
+                    setCapReporte(await r.json());
+                  }}>🔍 Buscar</Btn>
+                </Card>
+                <div className="bg-white rounded-xl shadow overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","Nombre","Capacitación","Fecha","Duración","Resultado","Observaciones",""].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {capReporte.map(c => {
+                        const aso = asociados.find(a => a.cuil === c.cuil_asociado);
+                        return (
+                          <tr key={c.id} className="border-t border-gray-100">
+                            <td className="px-3 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-3 py-2">{c.maestro_asociados?.nombre_completo}</td>
+                            <td className="px-3 py-2">{c.titulo}</td>
+                            <td className="px-3 py-2">{c.fecha}</td>
+                            <td className="px-3 py-2">{c.duracion_hs ? `${c.duracion_hs}hs` : "-"}</td>
+                            <td className="px-3 py-2">{c.resultado || "-"}</td>
+                            <td className="px-3 py-2 text-gray-500">{c.observaciones || "-"}</td>
+                            <td className="px-3 py-2">
+                              <button onClick={async () => {
+                                if (!confirm("¿Eliminar esta capacitación?")) return;
+                                await fetch("/api/capacitaciones", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: c.id }) });
+                                setCapReporte(prev => prev.filter(x => x.id !== c.id));
+                              }} className="text-red-400 hover:text-red-600 text-xs">🗑️</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {capReporte.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">Sin resultados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                {capReporte.length > 0 && (
+                  <Btn variant="secondary" className="mt-3" onClick={async () => {
+                    const XLSX = await import("xlsx");
+                    const rows = capReporte.map(c => ({
+                      Legajo: asociados.find(a => a.cuil === c.cuil_asociado)?.nro_asociado || "",
+                      Nombre: c.maestro_asociados?.nombre_completo || "",
+                      Capacitacion: c.titulo,
+                      Fecha: c.fecha,
+                      "Duracion (hs)": c.duracion_hs || "",
+                      Resultado: c.resultado || "",
+                      Observaciones: c.observaciones || "",
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Capacitaciones");
+                    XLSX.writeFile(wb, "capacitaciones.xlsx");
+                  }}>📊 Exportar XLSX</Btn>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ===== INASISTENCIAS ===== */}
         {seccion === "inasistencias" && (
           <div>
@@ -1088,6 +1216,7 @@ export default function AdminPage() {
               {[
                 { label: "Padrón de Asociados", url: "/api/asociados?reporte=1", file: "asociados", fechaField: null, cuilField: "cuil" },
                 { label: "Sanciones", url: "/api/sanciones?reporte=1", file: "sanciones", fechaField: "fecha_desde", cuilField: "cuil_asociado" },
+                { label: "Capacitaciones", url: "/api/capacitaciones?reporte=1", file: "capacitaciones", fechaField: "fecha", cuilField: "cuil_asociado" },
                 { label: "Historial Médico", url: "/api/medico?reporte=1", file: "historial", fechaField: "fecha", cuilField: "cuil_asociado" },
                 { label: "Préstamos", url: "/api/prestamos?reporte=1", file: "prestamos", fechaField: "fecha_otorgamiento", cuilField: "cuil_asociado" },
               ].map(rep => (
