@@ -1232,14 +1232,25 @@ export default function AdminPage() {
                         if (repSector) d = d.filter(row => row["sector"] === repSector || row["maestro_asociados"] === undefined);
                         if (repCuil && rep.cuilField) d = d.filter(row => row[rep.cuilField!] === repCuil);
                         if (!d.length) { setMsg({ text: "Sin datos con esos filtros.", ok: false }); return; }
+                        // Aplanar maestro_asociados si existe
+                        const flat = d.map(row => {
+                          const r = { ...row };
+                          if (r.maestro_asociados && typeof r.maestro_asociados === "object") {
+                            const aso = r.maestro_asociados as Record<string, unknown>;
+                            r["Nombre"] = aso.nombre_completo || "";
+                            r["Nro Legajo"] = aso.nro_legajo || aso.nro_asociado || "";
+                            delete r.maestro_asociados;
+                          }
+                          return r;
+                        });
                         if (ext === "csv") {
-                          const keys = Object.keys(d[0]);
-                          const csv = [keys.join(","), ...d.map(row => keys.map(k => `"${String(row[k] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+                          const keys = Object.keys(flat[0]);
+                          const csv = [keys.join(","), ...flat.map(row => keys.map(k => `"${String(row[k] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
                           const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
                           const a = document.createElement("a"); a.href = url; a.download = `${rep.file}.csv`; a.click();
                         } else {
                           const XLSX = await import("xlsx");
-                          const ws = XLSX.utils.json_to_sheet(d);
+                          const ws = XLSX.utils.json_to_sheet(flat);
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, rep.label);
                           XLSX.writeFile(wb, `${rep.file}.xlsx`);
