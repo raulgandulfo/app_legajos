@@ -777,10 +777,18 @@ export default function AdminPage() {
                 </div>
                 {prestamos.map(p => (
                   <div key={p.id} className="border border-gray-200 rounded-xl p-4 mb-4">
-                    <div className="font-bold mb-3">Préstamo #{p.id} — {p.fecha_otorgamiento} | ${fmt(p.monto_total)}</div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="font-bold">Préstamo #{p.id} — {p.fecha_otorgamiento} | ${fmt(p.monto_total)}</div>
+                      <Btn variant="danger" className="text-xs py-1 px-2" onClick={async () => {
+                        if (!confirm(`¿Eliminar el préstamo #${p.id} y todas sus cuotas? Esta acción no se puede deshacer.`)) return;
+                        await fetch("/api/prestamos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+                        setPrestamos(prev => prev.filter(x => x.id !== p.id));
+                        setMsg({ text: `Préstamo #${p.id} eliminado.`, ok: true });
+                      }}>🗑️ Eliminar préstamo</Btn>
+                    </div>
                     {(p.prestamos_cuotas || []).map(c => (
-                      <div key={c.id} className="grid grid-cols-4 gap-2 items-center mb-2">
-                        <span className="text-sm">Cuota {c.numero_cuota}</span>
+                      <div key={c.id} className="grid grid-cols-5 gap-2 items-center mb-2">
+                        <span className="text-sm">Cuota {c.numero_cuota} — ${fmt(c.monto_cuota)}</span>
                         <Input type="date" value={cuotasEdit[c.id!]?.fecha || c.fecha_vencimiento} onChange={e => setCuotasEdit(prev => ({ ...prev, [c.id!]: { ...prev[c.id!], fecha: e.target.value } }))} />
                         <Select value={cuotasEdit[c.id!]?.estado || c.estado} onChange={e => setCuotasEdit(prev => ({ ...prev, [c.id!]: { ...prev[c.id!], estado: e.target.value } }))}>
                           {["Pendiente","Descontada","Pausada"].map(s => <option key={s}>{s}</option>)}

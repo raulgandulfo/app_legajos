@@ -92,3 +92,11 @@ export async function PATCH(req: NextRequest) {
   await supabase.from("prestamos_cuotas").update({ fecha_vencimiento, estado }).eq("id", id);
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(req: NextRequest) {
+  const supabase = getSupabase();
+  const { id } = await req.json();
+  await supabase.from("prestamos_cuotas").delete().eq("prestamo_id", id);
+  await supabase.from("prestamos").delete().eq("id", id);
+  return NextResponse.json({ ok: true });
+}
