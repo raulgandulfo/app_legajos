@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Session { username: string; rol: string; }
@@ -39,9 +39,9 @@ function Btn({ children, variant = "primary", className = "", ...props }: React.
   const v = variant === "primary" ? "bg-blue-500 hover:bg-blue-600 text-white" : variant === "danger" ? "bg-red-500 hover:bg-red-600 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200";
   return <button className={base + v + " " + className} {...props}>{children}</button>;
 }
-function Alert({ msg }: { msg: { text: string; ok: boolean } | null }) {
+function Alert({ msg }: { msg: { text: string; ok: boolean; key?: number } | null }) {
   if (!msg) return null;
-  return <div className={`p-3 rounded-lg text-sm mb-4 ${msg.ok ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{msg.text}</div>;
+  return <div key={msg.key} className={`p-3 rounded-lg text-sm mb-4 animate-pulse-once ${msg.ok ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{msg.text}</div>;
 }
 
 export default function AdminPage() {
@@ -51,7 +51,14 @@ export default function AdminPage() {
   const [user, setUser] = useState(""); const [pass, setPass] = useState("");
   const [loginMsg, setLoginMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [seccion, setSeccion] = useState("dashboard");
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [msg, setMsgRaw] = useState<{ text: string; ok: boolean; key: number } | null>(null);
+  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setMsg = useCallback((m: { text: string; ok: boolean } | null) => {
+    if (msgTimer.current) clearTimeout(msgTimer.current);
+    if (!m) { setMsgRaw(null); return; }
+    setMsgRaw({ ...m, key: Date.now() });
+    msgTimer.current = setTimeout(() => setMsgRaw(null), 4000);
+  }, []);
 
   // --- Datos ---
   const [asociados, setAsociados] = useState<Asociado[]>([]);
