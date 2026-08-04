@@ -119,6 +119,16 @@ export async function POST(req: NextRequest) {
   let rows = await queryAllRows(supabase, periodos);
   if (!rows.length) return NextResponse.json({ error: "Sin datos" }, { status: 400 });
 
+  // Cargar confirmaciones electrónicas para los períodos solicitados
+  const { data: confData } = await supabase
+    .from("recibo_confirmaciones")
+    .select("cuil, periodo, fecha_confirmacion, ip")
+    .in("periodo", periodos);
+  const confMap: Record<string, { fecha: string; ip: string }> = {};
+  (confData || []).forEach((c: { cuil: string; periodo: string; fecha_confirmacion: string; ip: string }) => {
+    confMap[`${c.cuil}|${c.periodo}`] = { fecha: c.fecha_confirmacion, ip: c.ip || "" };
+  });
+
   // Aplicar filtro antes de generar PDFs
   if (filtroTipo === "sector" && filtroSector) {
     const norm = normSec(filtroSector);
@@ -261,8 +271,17 @@ export async function POST(req: NextRequest) {
         page.drawText("Firma del Asociado/a: ____________________", { x: 10, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
         page.drawText(`Fecha de emision: ${sp(fecha)}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
 
+        // Leyenda de firma electrónica (si existe confirmación para este CUIL+período)
+        const periodoKey = periodos.length === 1 ? periodos[0] : periodos.find(p => confMap[`${r.cuil}|${p}`]) || "";
+        const conf = confMap[`${r.cuil}|${periodoKey}`];
+        if (conf) {
+          const fechaConf = new Date(conf.fecha).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          const leyenda = sp(`Confirmado electronicamente el ${fechaConf} hs | CUIL: ${r.cuil} | IP: ${conf.ip}`);
+          page.drawText(leyenda, { x: 10, y: baseY - 401, font, size: 6.5, color: rgb(0.45, 0.45, 0.45) });
+        }
+
         if (j === 0) {
-          page.drawLine({ start: { x: 10, y: baseY - 405 }, end: { x: 585, y: baseY - 405 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+          page.drawLine({ start: { x: 10, y: baseY - 410 }, end: { x: 585, y: baseY - 410 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
         }
       }
     }
