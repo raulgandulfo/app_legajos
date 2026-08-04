@@ -133,6 +133,11 @@ export default function AdminPage() {
   const [capRepDesde, setCapRepDesde] = useState("");
   const [capRepHasta, setCapRepHasta] = useState("");
 
+  // --- Confirmaciones ---
+  const [confData, setConfData] = useState<{ cuil: string; periodo: string; fecha_confirmacion: string; ip: string; maestro_asociados?: { nombre_completo?: string; nro_asociado?: string } }[]>([]);
+  const [confPeriodoSel, setConfPeriodoSel] = useState("");
+  const [confCargando, setConfCargando] = useState(false);
+
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
   const [nuUser, setNuUser] = useState(""); const [nuPass, setNuPass] = useState(""); const [nuRol, setNuRol] = useState("auxiliar");
@@ -1278,58 +1283,95 @@ export default function AdminPage() {
             </div>
 
             {/* Reporte de confirmaciones de recibos */}
-            <div className="mt-6">
-              <h3 className="font-bold text-[#1e293b] mb-3">✅ Confirmaciones de Recibos</h3>
-              <Card>
-                <p className="text-sm text-gray-500 mb-3">Asociados que confirmaron o no la recepción de su liquidación por período.</p>
-                <div className="flex gap-3 items-end flex-wrap mb-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">Período</label>
-                    <select id="conf-periodo-sel" className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
-                      <option value="">-- Todos --</option>
-                      {periodos.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
+            {(() => {
+              const periodosConf = [...new Set(confData.map(c => c.periodo))].sort().reverse();
+              return (
+              <div className="mt-6">
+                <h3 className="font-bold text-[#1e293b] mb-3">✅ Confirmaciones de Recibos</h3>
+                <Card>
+                  <p className="text-sm text-gray-500 mb-3">Asociados que confirmaron o no la recepción de su liquidación por período.</p>
+                  <div className="flex gap-3 items-end flex-wrap mb-3">
+                    <Btn variant="secondary" disabled={confCargando} onClick={async () => {
+                      setConfCargando(true);
+                      const r = await fetch("/api/confirmaciones?reporte=1");
+                      setConfData(await r.json());
+                      setConfCargando(false);
+                    }}>{confCargando ? "Cargando..." : "🔄 Cargar datos"}</Btn>
+                    {periodosConf.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-600 mb-1">Período</label>
+                        <select className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" value={confPeriodoSel} onChange={e => setConfPeriodoSel(e.target.value)}>
+                          <option value="">-- Todos --</option>
+                          {periodosConf.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                    )}
                   </div>
-                  <Btn variant="secondary" onClick={async () => {
-                    const sel = (document.getElementById("conf-periodo-sel") as HTMLSelectElement).value;
-                    const [resConf, resAsos] = await Promise.all([
-                      fetch("/api/confirmaciones?reporte=1").then(r => r.json()),
-                      fetch("/api/asociados?all=1").then(r => r.json()),
-                    ]);
-                    const confirmaciones: { cuil: string; periodo: string; fecha_confirmacion: string; ip: string; maestro_asociados?: { nombre_completo?: string; nro_asociado?: string } }[] = resConf;
-                    const todosAsos: Asociado[] = resAsos;
-                    const filtradas = sel ? confirmaciones.filter(c => c.periodo === sel) : confirmaciones;
 
-                    // Quiénes no firmaron (solo si hay período seleccionado)
-                    let noFirmaron: { cuil: string; nombre: string; nro: string }[] = [];
-                    if (sel) {
-                      const cuils_confirmados = new Set(filtradas.map(c => c.cuil));
-                      noFirmaron = todosAsos
-                        .filter(a => !cuils_confirmados.has(a.cuil))
-                        .map(a => ({ cuil: a.cuil, nombre: a.nombre_completo, nro: a.nro_asociado || "" }));
-                    }
-
-                    const XLSX = await import("xlsx");
-                    const wb = XLSX.utils.book_new();
-                    const rowsFirmaron = filtradas.map(c => ({
-                      "Nro": c.maestro_asociados?.nro_asociado || "",
-                      "Nombre": c.maestro_asociados?.nombre_completo || c.cuil,
-                      "CUIL": c.cuil,
-                      "Período": c.periodo,
-                      "Fecha confirmación": new Date(c.fecha_confirmacion).toLocaleString("es-AR"),
-                      "IP": c.ip || "",
-                    }));
-                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsFirmaron), "Confirmaron");
-                    if (noFirmaron.length) {
-                      const rowsNo = noFirmaron.map(a => ({ "Nro": a.nro, "Nombre": a.nombre, "CUIL": a.cuil, "Período": sel, "Estado": "NO confirmado" }));
-                      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsNo), "No confirmaron");
-                    }
-                    XLSX.writeFile(wb, `confirmaciones${sel ? "_" + sel.replace(/\s+/g, "_") : ""}.xlsx`);
-                  }}>📊 Exportar XLSX</Btn>
-                </div>
-                <p className="text-xs text-gray-400">El XLSX tendrá dos pestañas: quiénes confirmaron y (si filtrás por período) quiénes no.</p>
-              </Card>
-            </div>
+                  {confData.length > 0 && (
+                    <>
+                      {(() => {
+                        const filtradas = confPeriodoSel ? confData.filter(c => c.periodo === confPeriodoSel) : confData;
+                        const cuils_confirmados = new Set(filtradas.map(c => c.cuil));
+                        const noFirmaron = confPeriodoSel
+                          ? asociados.filter(a => !cuils_confirmados.has(a.cuil))
+                          : [];
+                        return (
+                          <>
+                            <div className="overflow-x-auto mb-3">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                  <tr>{["Nro","Nombre","CUIL","Período","Fecha confirmación","IP"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                  {filtradas.map((c, i) => (
+                                    <tr key={i} className="border-t border-gray-100">
+                                      <td className="px-3 py-1.5">{c.maestro_asociados?.nro_asociado || "-"}</td>
+                                      <td className="px-3 py-1.5">{c.maestro_asociados?.nombre_completo || c.cuil}</td>
+                                      <td className="px-3 py-1.5">{c.cuil}</td>
+                                      <td className="px-3 py-1.5">{c.periodo}</td>
+                                      <td className="px-3 py-1.5">{new Date(c.fecha_confirmacion).toLocaleString("es-AR")}</td>
+                                      <td className="px-3 py-1.5 text-gray-400 text-xs">{c.ip || "-"}</td>
+                                    </tr>
+                                  ))}
+                                  {filtradas.length === 0 && <tr><td colSpan={6} className="px-3 py-4 text-center text-gray-400">Sin confirmaciones</td></tr>}
+                                </tbody>
+                              </table>
+                            </div>
+                            {confPeriodoSel && noFirmaron.length > 0 && (
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                                <div className="font-semibold text-red-700 text-sm mb-2">⚠️ {noFirmaron.length} asociados sin confirmar para {confPeriodoSel}:</div>
+                                <div className="text-sm text-red-600">{noFirmaron.map(a => a.nombre_completo).join(", ")}</div>
+                              </div>
+                            )}
+                            <Btn variant="secondary" onClick={async () => {
+                              const XLSX = await import("xlsx");
+                              const wb = XLSX.utils.book_new();
+                              const rowsFirmaron = filtradas.map(c => ({
+                                "Nro": c.maestro_asociados?.nro_asociado || "",
+                                "Nombre": c.maestro_asociados?.nombre_completo || c.cuil,
+                                "CUIL": c.cuil,
+                                "Período": c.periodo,
+                                "Fecha confirmación": new Date(c.fecha_confirmacion).toLocaleString("es-AR"),
+                                "IP": c.ip || "",
+                              }));
+                              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsFirmaron.length ? rowsFirmaron : [{ "Info": "Sin datos" }]), "Confirmaron");
+                              if (confPeriodoSel && noFirmaron.length) {
+                                const rowsNo = noFirmaron.map(a => ({ "Nro": a.nro_asociado || "", "Nombre": a.nombre_completo, "CUIL": a.cuil, "Período": confPeriodoSel, "Estado": "NO confirmado" }));
+                                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsNo), "No confirmaron");
+                              }
+                              XLSX.writeFile(wb, `confirmaciones${confPeriodoSel ? "_" + confPeriodoSel.replace(/\s+/g, "_") : ""}.xlsx`);
+                            }}>📊 Exportar XLSX</Btn>
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
+                  {confData.length === 0 && !confCargando && <p className="text-xs text-gray-400">Hacé click en "Cargar datos" para ver el reporte.</p>}
+                </Card>
+              </div>
+              );
+            })()}
 
             {/* Reporte de liquidación por asociado */}
             <div className="mt-6">
