@@ -1292,15 +1292,20 @@ export default function AdminPage() {
                   </div>
                   <Btn variant="secondary" onClick={async () => {
                     const sel = (document.getElementById("conf-periodo-sel") as HTMLSelectElement).value;
-                    const r = await fetch("/api/confirmaciones?reporte=1");
-                    const confirmaciones: { cuil: string; periodo: string; fecha_confirmacion: string; ip: string; maestro_asociados?: { nombre_completo?: string; nro_asociado?: string } }[] = await r.json();
+                    const [resConf, resAsos] = await Promise.all([
+                      fetch("/api/confirmaciones?reporte=1").then(r => r.json()),
+                      fetch("/api/asociados?all=1").then(r => r.json()),
+                    ]);
+                    const confirmaciones: { cuil: string; periodo: string; fecha_confirmacion: string; ip: string; maestro_asociados?: { nombre_completo?: string; nro_asociado?: string } }[] = resConf;
+                    const todosAsos: Asociado[] = resAsos;
                     const filtradas = sel ? confirmaciones.filter(c => c.periodo === sel) : confirmaciones;
 
                     // Quiénes no firmaron (solo si hay período seleccionado)
                     let noFirmaron: { cuil: string; nombre: string; nro: string }[] = [];
                     if (sel) {
-                      noFirmaron = todosAsociados
-                        .filter(a => a.activo !== false && !filtradas.find(c => c.cuil === a.cuil))
+                      const cuils_confirmados = new Set(filtradas.map(c => c.cuil));
+                      noFirmaron = todosAsos
+                        .filter(a => !cuils_confirmados.has(a.cuil))
                         .map(a => ({ cuil: a.cuil, nombre: a.nombre_completo, nro: a.nro_asociado || "" }));
                     }
 
