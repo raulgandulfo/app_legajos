@@ -213,22 +213,36 @@ export default function AsociadoPage() {
 
         {activeTab === "recibos" && (
           <div>
-            {!periodos.length ? <Card><p className="text-gray-500">Todavía no hay liquidaciones disponibles.</p></Card> : (
+            {!periodos.length ? <Card><p className="text-gray-500">Todavía no hay liquidaciones disponibles.</p></Card> : (() => {
+              // periodos viene del más nuevo al más viejo → invertir para encontrar el pendiente más antiguo
+              const ordenados = [...periodos].reverse(); // de más viejo a más nuevo
+              const primerPendiente = ordenados.find(p => !confirmados.has(p));
+              // El asociado solo puede ver períodos confirmados + el primer pendiente
+              const periodosVisibles = periodos.filter(p => confirmados.has(p) || p === primerPendiente);
+              return (
               <>
                 <div className="flex gap-3 items-center mb-4 flex-wrap">
                   <select className="px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => { setPeriodoSel(e.target.value); }}>
-                    {periodos.map(p => (
+                    {periodosVisibles.map(p => (
                       <option key={p} value={p}>{p} {confirmados.has(p) ? "✅" : "⚠️ pendiente"}</option>
                     ))}
                   </select>
+                  {primerPendiente && periodos.filter(p => !confirmados.has(p)).length > 0 && (
+                    <span className="text-sm text-amber-600 font-medium">
+                      {periodos.filter(p => !confirmados.has(p)).length} período{periodos.filter(p => !confirmados.has(p)).length > 1 ? "s" : ""} pendiente{periodos.filter(p => !confirmados.has(p)).length > 1 ? "s" : ""} de confirmación
+                    </span>
+                  )}
                 </div>
 
-                {/* Bloque de confirmación — aparece si el período seleccionado no fue confirmado */}
+                {/* Bloque de confirmación — aparece si el período seleccionado es el primer pendiente */}
                 {!confirmados.has(periodoSel) ? (
                   <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6 mb-4">
                     <div className="text-amber-800 font-bold text-lg mb-2">⚠️ Confirmación requerida</div>
                     <p className="text-amber-700 text-sm mb-4">
-                      Para ver y descargar tu liquidación del período <strong>{periodoSel}</strong>, debés confirmar su recepción.
+                      Para continuar, debés confirmar la recepción del período <strong>{periodoSel}</strong>.
+                      {periodos.filter(p => !confirmados.has(p)).length > 1 && (
+                        <span className="block mt-1">Tenés <strong>{periodos.filter(p => !confirmados.has(p)).length} períodos</strong> pendientes. Debés confirmarlos en orden, del más antiguo al más reciente.</span>
+                      )}
                     </p>
                     <div className="bg-white border border-amber-200 rounded-lg p-4 text-sm text-gray-700 mb-5">
                       Al hacer click en <strong>"Confirmar recepción"</strong>, declaro haber recibido y tomado conocimiento de mi liquidación correspondiente al período <strong>{periodoSel}</strong>. Esta acción queda registrada con fecha, hora y datos del dispositivo, y tiene validez como constancia de recepción.
@@ -243,7 +257,11 @@ export default function AsociadoPage() {
                           body: JSON.stringify({ cuil: session!.cuil, periodo: periodoSel }),
                         });
                         if (r.ok) {
-                          setConfirmados(prev => new Set([...prev, periodoSel]));
+                          const nuevosConfirmados = new Set([...confirmados, periodoSel]);
+                          setConfirmados(nuevosConfirmados);
+                          // Avanzar automáticamente al siguiente pendiente
+                          const sigPendiente = ordenados.find(p => !nuevosConfirmados.has(p));
+                          if (sigPendiente) setPeriodoSel(sigPendiente);
                         }
                         setConfirmando(false);
                       }}
@@ -323,7 +341,8 @@ export default function AsociadoPage() {
                   </>
                 )}
               </>
-            )}
+              );
+            })()}
           </div>
         )}
 
