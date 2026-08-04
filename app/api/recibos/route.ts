@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
         page.drawText(`Fecha de emision: ${sp(fecha)}`, { x: 350, y, font, size: 10, color: rgb(0.1, 0.1, 0.1) });
 
         // Leyenda de firma electrónica (si existe confirmación para este CUIL+período)
-        const periodoKey = periodos.length === 1 ? periodos[0] : periodos.find(p => confMap[`${r.cuil}|${p}`]) || "";
+        const periodoKey = periodos.length === 1 ? periodos[0] : periodos.find((p: string) => confMap[`${r.cuil}|${p}`]) || "";
         const conf = confMap[`${r.cuil}|${periodoKey}`];
         if (conf) {
           const fechaConf = new Date(conf.fecha).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
