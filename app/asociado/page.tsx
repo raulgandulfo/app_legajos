@@ -37,6 +37,8 @@ export default function AsociadoPage() {
   const [newPass, setNewPass] = useState(""); const [newPass2, setNewPass2] = useState("");
   const [asociado, setAsociado] = useState<{ nombre_completo?: string } | null>(null);
   const [descargando, setDescargando] = useState(false);
+  const [confirmados, setConfirmados] = useState<Set<string>>(new Set());
+  const [confirmando, setConfirmando] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then(r => r.json()).then(s => {
@@ -55,6 +57,9 @@ export default function AsociadoPage() {
     fetch(`/api/prestamos?cuil=${session.cuil}`).then(r => r.json()).then(setPrestamos);
     fetch(`/api/sanciones?cuil=${session.cuil}`).then(r => r.json()).then(setSanciones);
     fetch(`/api/medico?cuil=${session.cuil}`).then(r => r.json()).then(setHistorial);
+    fetch(`/api/confirmaciones?cuil=${session.cuil}`).then(r => r.json()).then((data: { periodo: string }[]) => {
+      setConfirmados(new Set(data.map(d => d.periodo)));
+    });
   }, [session]);
 
   useEffect(() => {
@@ -211,71 +216,112 @@ export default function AsociadoPage() {
             {!periodos.length ? <Card><p className="text-gray-500">Todavía no hay liquidaciones disponibles.</p></Card> : (
               <>
                 <div className="flex gap-3 items-center mb-4 flex-wrap">
-                  <select className="px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => setPeriodoSel(e.target.value)}>
-                    {periodos.map(p => <option key={p}>{p}</option>)}
+                  <select className="px-4 py-2 border border-gray-200 rounded-lg bg-white" value={periodoSel} onChange={e => { setPeriodoSel(e.target.value); }}>
+                    {periodos.map(p => (
+                      <option key={p} value={p}>{p} {confirmados.has(p) ? "✅" : "⚠️ pendiente"}</option>
+                    ))}
                   </select>
-                  <button
-                    disabled={!periodoSel || descargando}
-                    onClick={async () => {
-                      setDescargando(true);
-                      try {
-                        const r = await fetch("/api/recibos", {
+                </div>
+
+                {/* Bloque de confirmación — aparece si el período seleccionado no fue confirmado */}
+                {!confirmados.has(periodoSel) ? (
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6 mb-4">
+                    <div className="text-amber-800 font-bold text-lg mb-2">⚠️ Confirmación requerida</div>
+                    <p className="text-amber-700 text-sm mb-4">
+                      Para ver y descargar tu liquidación del período <strong>{periodoSel}</strong>, debés confirmar su recepción.
+                    </p>
+                    <div className="bg-white border border-amber-200 rounded-lg p-4 text-sm text-gray-700 mb-5">
+                      Al hacer click en <strong>"Confirmar recepción"</strong>, declaro haber recibido y tomado conocimiento de mi liquidación correspondiente al período <strong>{periodoSel}</strong>. Esta acción queda registrada con fecha, hora y datos del dispositivo, y tiene validez como constancia de recepción.
+                    </div>
+                    <button
+                      disabled={confirmando}
+                      onClick={async () => {
+                        setConfirmando(true);
+                        const r = await fetch("/api/confirmaciones", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            periodos: [periodoSel],
-                            titulo: periodoSel,
-                            fecha: new Date().toLocaleDateString("es-AR"),
-                            filtroTipo: "persona",
-                            filtroCuil: session!.cuil,
-                            formato: "pdf",
-                          }),
+                          body: JSON.stringify({ cuil: session!.cuil, periodo: periodoSel }),
                         });
-                        if (!r.ok) { const e = await r.json(); alert(e.error || "Error al generar el recibo"); return; }
-                        const blob = await r.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url; a.download = `Recibo_${periodoSel.replace(/\s+/g, "_")}.pdf`; a.click();
-                        URL.revokeObjectURL(url);
-                      } finally { setDescargando(false); }
-                    }}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    {descargando ? "Generando..." : "📄 Descargar Recibo"}
-                  </button>
-                </div>
-                {liqRows[0] && (
-                  <Card>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                      <span><span className="font-medium">Sector:</span> {liqRows[0].sector}</span>
-                      <span><span className="font-medium">Categoría:</span> {liqRows[0].categoria}</span>
-                      {liqRows[0].jornal_basico ? <span><span className="font-medium">Jornal básico:</span> ${fmt(liqRows[0].jornal_basico)}</span> : null}
+                        if (r.ok) {
+                          setConfirmados(prev => new Set([...prev, periodoSel]));
+                        }
+                        setConfirmando(false);
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white py-3 rounded-xl font-bold text-base transition-colors"
+                    >
+                      {confirmando ? "Registrando..." : "✅ Confirmar recepción de liquidación"}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2 rounded-lg mb-4 flex items-center gap-2">
+                      ✅ <span>Recepción confirmada para el período <strong>{periodoSel}</strong></span>
                     </div>
-                  </Card>
+                    <div className="flex gap-3 mb-4">
+                      <button
+                        disabled={!periodoSel || descargando}
+                        onClick={async () => {
+                          setDescargando(true);
+                          try {
+                            const r = await fetch("/api/recibos", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                periodos: [periodoSel],
+                                titulo: periodoSel,
+                                fecha: new Date().toLocaleDateString("es-AR"),
+                                filtroTipo: "persona",
+                                filtroCuil: session!.cuil,
+                                formato: "pdf",
+                              }),
+                            });
+                            if (!r.ok) { const e = await r.json(); alert(e.error || "Error al generar el recibo"); return; }
+                            const blob = await r.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = `Recibo_${periodoSel.replace(/\s+/g, "_")}.pdf`; a.click();
+                            URL.revokeObjectURL(url);
+                          } finally { setDescargando(false); }
+                        }}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        {descargando ? "Generando..." : "📄 Descargar Recibo"}
+                      </button>
+                    </div>
+                    {liqRows[0] && (
+                      <Card>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                          <span><span className="font-medium">Sector:</span> {liqRows[0].sector}</span>
+                          <span><span className="font-medium">Categoría:</span> {liqRows[0].categoria}</span>
+                          {liqRows[0].jornal_basico ? <span><span className="font-medium">Jornal básico:</span> ${fmt(liqRows[0].jornal_basico)}</span> : null}
+                        </div>
+                      </Card>
+                    )}
+                    <h3 className="font-semibold text-[#1e293b] mb-3">Detalle de la Liquidación</h3>
+                    <div className="overflow-x-auto bg-white rounded-xl shadow mb-4">
+                      <table className="w-full text-sm min-w-[360px]">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr><th className="text-left px-4 py-3">Concepto</th><th className="px-3 py-3 text-center">Cant.</th><th className="text-right px-4 py-3">Importe ($)</th></tr>
+                        </thead>
+                        <tbody>
+                          {detalle.map((r, i) => (
+                            <tr key={i} className="border-t border-gray-100">
+                              <td className="px-4 py-2">{r.descripcion}</td>
+                              <td className="px-3 py-2 text-center">{r.cantidad || ""}</td>
+                              <td className={`px-4 py-2 text-right ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
+                                {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white rounded-xl p-6 text-center">
+                      <div className="text-xs uppercase tracking-widest opacity-60 mb-1">NETO A COBRAR</div>
+                      <div className="text-3xl font-bold">$ {fmt(neto)}</div>
+                    </div>
+                  </>
                 )}
-                <h3 className="font-semibold text-[#1e293b] mb-3">Detalle de la Liquidación</h3>
-                <div className="overflow-x-auto bg-white rounded-xl shadow mb-4">
-                  <table className="w-full text-sm min-w-[360px]">
-                    <thead className="bg-gray-50 text-gray-600">
-                      <tr><th className="text-left px-4 py-3">Concepto</th><th className="px-3 py-3 text-center">Cant.</th><th className="text-right px-4 py-3">Importe ($)</th></tr>
-                    </thead>
-                    <tbody>
-                      {detalle.map((r, i) => (
-                        <tr key={i} className="border-t border-gray-100">
-                          <td className="px-4 py-2">{r.descripcion}</td>
-                          <td className="px-3 py-2 text-center">{r.cantidad || ""}</td>
-                          <td className={`px-4 py-2 text-right ${r.tipo_concepto === "Retención" ? "text-red-500" : ""}`}>
-                            {r.tipo_concepto === "Retención" ? `-${fmt(Math.abs(r.importe))}` : fmt(r.importe)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] text-white rounded-xl p-6 text-center">
-                  <div className="text-xs uppercase tracking-widest opacity-60 mb-1">NETO A COBRAR</div>
-                  <div className="text-3xl font-bold">$ {fmt(neto)}</div>
-                </div>
               </>
             )}
           </div>

@@ -1277,6 +1277,55 @@ export default function AdminPage() {
               ))}
             </div>
 
+            {/* Reporte de confirmaciones de recibos */}
+            <div className="mt-6">
+              <h3 className="font-bold text-[#1e293b] mb-3">✅ Confirmaciones de Recibos</h3>
+              <Card>
+                <p className="text-sm text-gray-500 mb-3">Asociados que confirmaron o no la recepción de su liquidación por período.</p>
+                <div className="flex gap-3 items-end flex-wrap mb-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">Período</label>
+                    <select id="conf-periodo-sel" className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                      <option value="">-- Todos --</option>
+                      {periodos.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <Btn variant="secondary" onClick={async () => {
+                    const sel = (document.getElementById("conf-periodo-sel") as HTMLSelectElement).value;
+                    const r = await fetch("/api/confirmaciones?reporte=1");
+                    const confirmaciones: { cuil: string; periodo: string; fecha_confirmacion: string; ip: string; maestro_asociados?: { nombre_completo?: string; nro_asociado?: string } }[] = await r.json();
+                    const filtradas = sel ? confirmaciones.filter(c => c.periodo === sel) : confirmaciones;
+
+                    // Quiénes no firmaron (solo si hay período seleccionado)
+                    let noFirmaron: { cuil: string; nombre: string; nro: string }[] = [];
+                    if (sel) {
+                      noFirmaron = todosAsociados
+                        .filter(a => a.activo !== false && !filtradas.find(c => c.cuil === a.cuil))
+                        .map(a => ({ cuil: a.cuil, nombre: a.nombre_completo, nro: a.nro_asociado || "" }));
+                    }
+
+                    const XLSX = await import("xlsx");
+                    const wb = XLSX.utils.book_new();
+                    const rowsFirmaron = filtradas.map(c => ({
+                      "Nro": c.maestro_asociados?.nro_asociado || "",
+                      "Nombre": c.maestro_asociados?.nombre_completo || c.cuil,
+                      "CUIL": c.cuil,
+                      "Período": c.periodo,
+                      "Fecha confirmación": new Date(c.fecha_confirmacion).toLocaleString("es-AR"),
+                      "IP": c.ip || "",
+                    }));
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsFirmaron), "Confirmaron");
+                    if (noFirmaron.length) {
+                      const rowsNo = noFirmaron.map(a => ({ "Nro": a.nro, "Nombre": a.nombre, "CUIL": a.cuil, "Período": sel, "Estado": "NO confirmado" }));
+                      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsNo), "No confirmaron");
+                    }
+                    XLSX.writeFile(wb, `confirmaciones${sel ? "_" + sel.replace(/\s+/g, "_") : ""}.xlsx`);
+                  }}>📊 Exportar XLSX</Btn>
+                </div>
+                <p className="text-xs text-gray-400">El XLSX tendrá dos pestañas: quiénes confirmaron y (si filtrás por período) quiénes no.</p>
+              </Card>
+            </div>
+
             {/* Reporte de liquidación por asociado */}
             <div className="mt-6">
               <h3 className="font-bold text-[#1e293b] mb-3">📋 Liquidación por Asociado</h3>
