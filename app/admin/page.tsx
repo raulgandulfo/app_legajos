@@ -372,14 +372,14 @@ export default function AdminPage() {
   }
 
   async function generarRecibos() {
-    if (!periodosSel.length || !tituloRecibo) return;
+    if (!periodosSel.length) return;
     setGenRecibos(true);
-    const r = await fetch("/api/recibos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodos: periodosSel, titulo: tituloRecibo, fecha: fechaEm, filtroTipo: reciboFiltroTipo, filtroSector: reciboFiltroSector, filtroCuil: reciboFiltroCuil }) });
+    const r = await fetch("/api/recibos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodos: periodosSel, titulo: periodosSel.join("_"), fecha: fechaEm, filtroTipo: reciboFiltroTipo, filtroSector: reciboFiltroSector, filtroCuil: reciboFiltroCuil }) });
     if (!r.ok) { const d = await r.json().catch(() => ({})); setMsg({ text: `Error al generar recibos: ${d.error || r.status}`, ok: false }); setGenRecibos(false); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `Recibos_${tituloRecibo.replace(/\s+/g, "_")}.zip`; a.click();
+    a.href = url; a.download = `Recibos_${periodosSel.join("_").replace(/\s+/g, "_")}.zip`; a.click();
     URL.revokeObjectURL(url);
     setGenRecibos(false);
   }
@@ -1718,11 +1718,10 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div><Label>Título del recibo</Label><Input value={tituloRecibo} onChange={e => setTituloRecibo(e.target.value)} placeholder="JUNIO 2026" /></div>
-                  <div><Label>Fecha de emisión</Label><Input type="date" value={fechaEm} onChange={e => setFechaEm(e.target.value)} /></div>
+                <div className="mb-4">
+                  <Label>Fecha de emisión</Label><Input type="date" value={fechaEm} onChange={e => setFechaEm(e.target.value)} />
                 </div>
-                <Btn onClick={generarRecibos} disabled={!periodosSel.length || !tituloRecibo || genRecibos || (reciboFiltroTipo === "sector" && !reciboFiltroSector) || (reciboFiltroTipo === "persona" && !reciboFiltroCuil)}>
+                <Btn onClick={generarRecibos} disabled={!periodosSel.length || genRecibos || (reciboFiltroTipo === "sector" && !reciboFiltroSector) || (reciboFiltroTipo === "persona" && !reciboFiltroCuil)}>
                   {genRecibos ? "Generando..." : "🖨️ Generar Recibos PDF"}
                 </Btn>
               </Card>
