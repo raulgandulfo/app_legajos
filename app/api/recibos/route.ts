@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
     cuil: string; nombre: string; cat: string; sec: string; nro: string;
     puntos: number; vPunto: number; total: number; neto: number;
     descuentos: { desc: string; monto: number }[];
+    periodoLabel: string;
   }[]> = {};
   const sectorDisplay: Record<string, string> = {}; // normKey → nombre original para PDF
 
@@ -194,9 +195,10 @@ export async function POST(req: NextRequest) {
 
     const vPunto = puntos > 0 && totalHaberes > 0 ? Math.floor(totalHaberes / puntos) : 0;
     const descuentos = Object.entries(descuentosMap).map(([desc, monto]) => ({ desc: sp(desc), monto }));
+    const periodoLabel = periodosUnicos.filter(Boolean).sort().join(" / ");
 
     if (!bySector[secKey]) bySector[secKey] = [];
-    bySector[secKey].push({ cuil, nombre, cat, sec: rawSec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos });
+    bySector[secKey].push({ cuil, nombre, cat, sec: rawSec, nro, puntos, vPunto, total: totalHaberes, neto: netoFinal, descuentos, periodoLabel });
   }
 
   // Intentar cargar logo desde public/logo.png
@@ -246,7 +248,7 @@ export async function POST(req: NextRequest) {
         line(`Asociado N: ${sp(r.nro)}`);
         line(`CUIL: ${sp(r.cuil)}`);
         line(`Categoria funcional: ${sp(r.cat)}`);
-        line(`Sector: ${sp(r.sec)} | Periodo: ${sp(titulo)}`);
+        line(`Sector: ${sp(r.sec)} | Periodo: ${sp(r.periodoLabel || titulo)}`);
         y -= 4;
         line(`Puntos obtenidos: ${Math.round(r.puntos)} | Valor del punto: $${fmt(r.vPunto)} | Total a cobrar: $${fmt(r.total)}`, 10, true);
         y -= 2;
