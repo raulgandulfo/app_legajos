@@ -313,15 +313,31 @@ export default function AdminPage() {
       haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
       retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
     })).filter(f => f.cuil && f.cuil !== "null");
-    // Verificar CUILs que no están en el maestro
+    // Verificar CUILs que no están en el maestro y darlos de alta automáticamente
     const cuilsLiq = [...new Set(filas.map(f => f.cuil))];
     const cuilsMaestro = new Set(asociados.map(a => a.cuil));
     const faltantes = cuilsLiq.filter(c => !cuilsMaestro.has(c));
+    let altasMsg = "";
     if (faltantes.length > 0) {
-      const nombres = filas.filter(f => faltantes.includes(f.cuil) && f.nombre_completo).map(f => `${f.cuil} (${f.nombre_completo})`);
-      const uniqueNombres = [...new Set(nombres)];
-      const confirmar = confirm(`⚠️ ${faltantes.length} CUIL(s) de la liquidación NO están en el maestro de asociados:\n\n${uniqueNombres.slice(0, 10).join("\n")}${uniqueNombres.length > 10 ? `\n...y ${uniqueNombres.length - 10} más` : ""}\n\n¿Deseás cargar igual la liquidación? (No aparecerán en los reportes hasta que los agregues al maestro)`);
-      if (!confirmar) { setLiqCargando(false); return; }
+      // Tomar la primera fila de cada CUIL faltante para obtener nombre/sector/categoría
+      const nuevos = faltantes.map(cuil => {
+        const fila = filas.find(f => f.cuil === cuil);
+        return {
+          cuil,
+          nombre_completo: fila?.nombre_completo || null,
+          nro_legajo: fila?.nro_legajo || null,
+          sector: fila?.sector || null,
+          categoria: fila?.categoria || null,
+          activo: true,
+        };
+      });
+      for (const aso of nuevos) {
+        await fetch("/api/asociados", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(aso) });
+      }
+      const nombresAlta = nuevos.map(a => a.nombre_completo ? `${a.cuil} (${a.nombre_completo})` : a.cuil);
+      altasMsg = ` | ➕ ${faltantes.length} asociado(s) dado(s) de alta automáticamente: ${nombresAlta.slice(0, 5).join(", ")}${nombresAlta.length > 5 ? ` y ${nombresAlta.length - 5} más` : ""}.`;
+      // Recargar lista de asociados
+      fetch("/api/asociados?all=1").then(r => r.json()).then(setAsociados);
     }
 
     const liqRes = await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas, reemplazar: true }) });
@@ -339,7 +355,7 @@ export default function AdminPage() {
     }
 
     const cols = rows.length ? Object.keys(rows[0]).join(", ") : "";
-    setMsg({ text: `✅ ${liqData.insertados}/${filas.length} registros insertados para ${liqPeriodo}. Columnas: ${cols}`, ok: true });
+    setMsg({ text: `✅ ${liqData.insertados}/${filas.length} registros insertados para ${liqPeriodo}. Columnas: ${cols}${altasMsg}`, ok: true });
     setLiqFile(null); setLiqPeriodo("");
     fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos);
     fetch("/api/sectores").then(r => r.json()).then(setSectores);
