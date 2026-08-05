@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { auditLog } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
     .lt("fecha_vencimiento", hoy);
 
   if (reporte) {
+    await auditLog("consulta", "Consultó reporte de préstamos");
     let query = supabase
       .from("prestamos")
       .select("*, maestro_asociados(cuil, nro_asociado, nro_legajo, nombre_completo), prestamos_cuotas(*)")
@@ -74,6 +76,7 @@ export async function POST(req: NextRequest) {
 
   if (!p) return NextResponse.json({ error: "Error al crear préstamo" }, { status: 400 });
 
+  await auditLog("alta", `Registró préstamo $${monto_total} en ${cantidad_cuotas} cuotas para CUIL ${cuil}`);
   const monto_cuota = Math.round((monto_total / cantidad_cuotas) * 100) / 100;
   const cuotas = fechas_vencimientos.map((f: string, i: number) => ({
     prestamo_id: p.id,
@@ -98,5 +101,6 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   await supabase.from("prestamos_cuotas").delete().eq("prestamo_id", id);
   await supabase.from("prestamos").delete().eq("id", id);
+  await auditLog("baja", `Eliminó préstamo id ${id}`);
   return NextResponse.json({ ok: true });
 }

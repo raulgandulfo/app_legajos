@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { auditLog } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   const reporte = searchParams.get("reporte");
 
   if (reporte) {
+    await auditLog("consulta", "Consultó reporte de sanciones");
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
     const filtroCuil = searchParams.get("cuil_filtro");
@@ -43,5 +45,6 @@ export async function POST(req: NextRequest) {
     cuil_asociado: body.cuil, tipo: body.tipo,
     fecha_desde, fecha_hasta, motivo: body.motivo,
   });
+  await auditLog("alta", `Registró sanción (${body.tipo}) para CUIL ${body.cuil}`);
   return NextResponse.json({ ok: true });
 }

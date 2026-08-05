@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { auditLog } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   const reporte = searchParams.get("reporte");
 
   if (reporte) {
+    await auditLog("consulta", "Consultó reporte de historial médico");
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
     const filtroCuil = searchParams.get("cuil_filtro");
@@ -43,5 +45,6 @@ export async function POST(req: NextRequest) {
     fecha_hasta: fecha_hasta || fecha_desde,
     motivo,
   });
+  await auditLog("alta", `Registró inasistencia médica para CUIL ${cuil} (${fecha_desde})`);
   return NextResponse.json({ ok: true });
 }

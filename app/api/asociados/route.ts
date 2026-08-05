@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { auditLog } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (reporte) {
+    await auditLog("consulta", "Exportó padrón de asociados");
     const { data } = await supabase
       .from("maestro_asociados")
       .select("cuil,nro_asociado,nro_legajo,nombre_completo,dni,domicilio,localidad,provincia,telefono,sector,categoria,fecha_ingreso,fecha_salida,activo")
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (cuil) {
+    await auditLog("consulta", `Consultó asociado CUIL ${cuil}`);
     const { data } = await supabase.from("maestro_asociados").select("*").eq("cuil", cuil).single();
     return NextResponse.json(data);
   }
@@ -43,12 +46,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const datos = await req.json();
-  // Normalizar campos de fecha: string vacío → null
   if (!datos.fecha_salida) datos.fecha_salida = null;
   if (!datos.fecha_ingreso) datos.fecha_ingreso = null;
   datos.activo = !datos.fecha_salida;
   const { error } = await supabase.from("maestro_asociados").upsert(datos, { onConflict: "cuil" });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  await auditLog("modificación", `Guardó asociado CUIL ${datos.cuil} - ${datos.nombre_completo}`);
   return NextResponse.json({ ok: true });
 }
 
@@ -56,5 +59,6 @@ export async function DELETE(req: NextRequest) {
   const supabase = getSupabase();
   const { cuil } = await req.json();
   await supabase.from("maestro_asociados").update({ activo: false }).eq("cuil", cuil);
+  await auditLog("baja", `Dio de baja asociado CUIL ${cuil}`);
   return NextResponse.json({ ok: true });
 }

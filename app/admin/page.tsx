@@ -138,6 +138,11 @@ export default function AdminPage() {
   const [confPeriodoSel, setConfPeriodoSel] = useState("");
   const [confCargando, setConfCargando] = useState(false);
 
+  // --- Audit Log ---
+  const [auditData, setAuditData] = useState<{ id: number; username: string; accion: string; detalle: string; fecha: string }[]>([]);
+  const [auditCargando, setAuditCargando] = useState(false);
+  const [auditUser, setAuditUser] = useState("");
+
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
   const [nuUser, setNuUser] = useState(""); const [nuPass, setNuPass] = useState(""); const [nuRol, setNuRol] = useState("auxiliar");
@@ -381,6 +386,7 @@ export default function AdminPage() {
     { id: "recibos", label: "🖨️ Emitir Recibos" },
     ...(session?.rol === "admin" ? [
       { id: "usuarios", label: "👥 Usuarios" },
+      { id: "auditlog", label: "📋 Log de Actividad" },
       { id: "excel", label: "📁 Cargar Excel" },
       { id: "config", label: "🔧 Configuración" },
     ] : []),
@@ -1518,6 +1524,73 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ===== LOG DE ACTIVIDAD ===== */}
+        {seccion === "auditlog" && session.rol === "admin" && (() => {
+          const filtrados = auditUser ? auditData.filter(r => r.username === auditUser) : auditData;
+          const usuarios_audit = [...new Set(auditData.map(r => r.username))].sort();
+          return (
+            <div>
+              <h1 className="text-2xl font-bold text-[#1e293b] mb-4">📋 Log de Actividad</h1>
+              <Card>
+                <p className="text-sm text-gray-500 mb-3">Registro de acciones realizadas por usuarios auxiliares.</p>
+                <div className="flex gap-3 items-end flex-wrap mb-4">
+                  <Btn variant="secondary" disabled={auditCargando} onClick={async () => { setAuditCargando(true); const r = await fetch("/api/audit-log"); setAuditData(await r.json()); setAuditCargando(false); }}>
+                    {auditCargando ? "Cargando..." : "🔄 Cargar registros"}
+                  </Btn>
+                  {usuarios_audit.length > 0 && (
+                    <div>
+                      <Label>Filtrar por usuario</Label>
+                      <Select value={auditUser} onChange={e => setAuditUser(e.target.value)}>
+                        <option value="">Todos</option>
+                        {usuarios_audit.map(u => <option key={u} value={u}>{u}</option>)}
+                      </Select>
+                    </div>
+                  )}
+                  {auditData.length > 0 && (
+                    <Btn variant="secondary" onClick={async () => {
+                      const XLSX = await import("xlsx");
+                      const rows = filtrados.map(r => ({
+                        "Usuario": r.username,
+                        "Acción": r.accion,
+                        "Detalle": r.detalle || "",
+                        "Fecha": new Date(r.fecha).toLocaleString("es-AR"),
+                      }));
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Log");
+                      XLSX.writeFile(wb, "log_actividad.xlsx");
+                    }}>📊 Exportar XLSX</Btn>
+                  )}
+                </div>
+                {filtrados.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>{["Usuario","Acción","Detalle","Fecha"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {filtrados.map(r => (
+                          <tr key={r.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5 font-medium">{r.username}</td>
+                            <td className="px-3 py-1.5">
+                              <span className={`px-2 py-0.5 rounded text-xs ${r.accion === "baja" ? "bg-red-100 text-red-700" : r.accion === "alta" ? "bg-green-100 text-green-700" : r.accion === "modificación" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
+                                {r.accion}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-gray-600">{r.detalle || "-"}</td>
+                            <td className="px-3 py-1.5 text-gray-400 text-xs">{new Date(r.fecha).toLocaleString("es-AR")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  !auditCargando && <p className="text-xs text-gray-400">Hacé click en "Cargar registros" para ver el log.</p>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* ===== CARGAR EXCEL ===== */}
         {seccion === "excel" && session.rol === "admin" && (

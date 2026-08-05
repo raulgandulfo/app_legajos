@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { auditLog } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
   const reporte = searchParams.get("reporte");
 
   if (reporte) {
+    await auditLog("consulta", "Consultó reporte de capacitaciones");
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
     const filtroCuil = searchParams.get("cuil_filtro");
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
     resultado: body.resultado || null,
     observaciones: body.observaciones || null,
   });
+  await auditLog("alta", `Registró capacitación "${body.titulo}" para CUIL ${body.cuil}`);
   return NextResponse.json({ ok: true });
 }
 
@@ -52,5 +55,6 @@ export async function DELETE(req: NextRequest) {
   const supabase = getSupabase();
   const { id } = await req.json();
   await supabase.from("capacitaciones").delete().eq("id", id);
+  await auditLog("baja", `Eliminó capacitación id ${id}`);
   return NextResponse.json({ ok: true });
 }
