@@ -9,12 +9,27 @@ export async function GET(req: NextRequest) {
   const periodo = searchParams.get("periodo");
 
   if (reporte) {
-    // Reporte admin: todos los períodos confirmados + quién no confirmó
-    const { data } = await supabase
+    // Fetch confirmaciones + asociados separately and merge
+    const { data: confs, error } = await supabase
       .from("recibo_confirmaciones")
-      .select("*, maestro_asociados!left(nombre_completo, nro_asociado, nro_legajo)")
+      .select("cuil, periodo, fecha_confirmacion, ip")
       .order("fecha_confirmacion", { ascending: false });
-    return NextResponse.json(data || []);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const { data: asos } = await supabase
+      .from("maestro_asociados")
+      .select("cuil, nombre_completo, nro_asociado, nro_legajo");
+
+    const asoMap: Record<string, { nombre_completo: string; nro_asociado: string; nro_legajo: string }> = {};
+    for (const a of asos || []) asoMap[a.cuil] = a;
+
+    const result = (confs || []).map(c => ({
+      ...c,
+      maestro_asociados: asoMap[c.cuil] || null,
+    }));
+
+    return NextResponse.json(result);
   }
 
   if (cuil && periodo) {
@@ -28,7 +43,6 @@ export async function GET(req: NextRequest) {
   }
 
   if (cuil) {
-    // Todos los períodos confirmados por este CUIL
     const { data } = await supabase
       .from("recibo_confirmaciones")
       .select("periodo, fecha_confirmacion")
