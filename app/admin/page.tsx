@@ -143,6 +143,12 @@ export default function AdminPage() {
   const [auditCargando, setAuditCargando] = useState(false);
   const [auditUser, setAuditUser] = useState("");
 
+  // --- Archivo Banco ---
+  const [bancoFile, setBancoFile] = useState<File | null>(null);
+  const [bancoFecha, setBancoFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [bancoPreview, setBancoPreview] = useState<{ nombre: string; cuil: string; cbu: string; importe: number }[]>([]);
+  const [bancoMsg, setBancoMsg] = useState("");
+
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
   const [nuUser, setNuUser] = useState(""); const [nuPass, setNuPass] = useState(""); const [nuRol, setNuRol] = useState("auxiliar");
@@ -400,6 +406,7 @@ export default function AdminPage() {
     { id: "inasistencias", label: "🏥 Inasist. Médica" },
     { id: "reportes", label: "📊 Reportes" },
     { id: "recibos", label: "🖨️ Emitir Recibos" },
+    { id: "banco", label: "🏦 Archivo Banco" },
     ...(session?.rol === "admin" ? [
       { id: "usuarios", label: "👥 Usuarios" },
       { id: "auditlog", label: "📋 Log de Actividad" },
@@ -1646,6 +1653,124 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ===== ARCHIVO BANCO ===== */}
+        {seccion === "banco" && (() => {
+          const leerGrilla = async (file: File) => {
+            const XLSX = await import("xlsx");
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: null });
+            const pagos = rows
+              .filter(r => String(r["Forma de Pago"] || "").trim() === "Depósito Bancario" && r["CBU"])
+              .map(r => ({
+                nombre: String(r["Nombre y Apellido"] || "").trim(),
+                cuil: String(r["C.U.I.L."] || "").replace(/-/g, "").replace(/\s/g, "").trim(),
+                cbu: String(r["CBU"] || "").trim(),
+                importe: Number(r["Importe"] || 0),
+              }));
+            setBancoPreview(pagos);
+            setBancoMsg(pagos.length > 0 ? `${pagos.length} transferencias encontradas.` : "No se encontraron filas con 'Depósito Bancario'.");
+          };
+
+          const generarArchivoBanco = async () => {
+            if (!bancoPreview.length) return;
+            const XLSX = await import("xlsx");
+            const wb = XLSX.utils.book_new();
+
+            // Hoja Pagos con estructura del banco
+            const headers = ["Forma de pago", "Orden de pago", "Razón social del beneficiario (Opcional)", "Tipo de documento", "CUIT / CUIL", "Fecha de pago", "Importe del pago", "Número de instrumento del pago"];
+            const fechaPago = new Date(bancoFecha + "T12:00:00");
+            const dataRows = bancoPreview.map(p => ({
+              "Forma de pago": "T",
+              "Orden de pago": null,
+              "Razón social del beneficiario (Opcional)": p.nombre,
+              "Tipo de documento": "CUIL",
+              "CUIT / CUIL": Number(p.cuil),
+              "Fecha de pago": fechaPago,
+              "Importe del pago": p.importe,
+              "Número de instrumento del pago": p.cbu,
+            }));
+
+            // Fila encabezado "Numero de Envío" en fila 2, datos desde fila 8 (igual que template)
+            const aoa: unknown[][] = [
+              [null],
+              [null, null, null, null, null, "Numero de Envío:"],
+              [null], [null], [null],
+              ["INFORMACIÓN DEL PAGO"],
+              headers,
+              ...dataRows.map(r => [r["Forma de pago"], r["Orden de pago"], r["Razón social del beneficiario (Opcional)"], r["Tipo de documento"], r["CUIT / CUIL"], r["Fecha de pago"], r["Importe del pago"], r["Número de instrumento del pago"]]),
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            // Formato fecha para columna F (índice 5), desde fila 8 (índice 7)
+            for (let i = 0; i < bancoPreview.length; i++) {
+              const cellRef = XLSX.utils.encode_cell({ r: 7 + i, c: 5 });
+              if (ws[cellRef]) ws[cellRef].t = "d";
+            }
+            XLSX.utils.book_append_sheet(wb, ws, "Pagos");
+
+            const fecha = bancoFecha.replace(/-/g, "");
+            XLSX.writeFile(wb, `Archivo_Banco_${fecha}.xlsx`);
+          };
+
+          return (
+            <div>
+              <h1 className="text-2xl font-bold text-[#1e293b] mb-4">🏦 Generar Archivo para el Banco</h1>
+              <Card>
+                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">
+                  Subí la Grilla de Pagos exportada de tu sistema de liquidación. Se generará el archivo listo para enviar al banco con las transferencias (solo los pagos con CBU).
+                </p>
+                <div className="mb-4">
+                  <Label>Grilla de Pagos (Excel)</Label>
+                  <input type="file" accept=".xlsx,.xls" onChange={async e => {
+                    const f = e.target.files?.[0] || null;
+                    setBancoFile(f);
+                    setBancoPreview([]);
+                    setBancoMsg("");
+                    if (f) await leerGrilla(f);
+                  }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-1" />
+                </div>
+                <div className="mb-4">
+                  <Label>Fecha de pago</Label>
+                  <Input type="date" value={bancoFecha} onChange={e => setBancoFecha(e.target.value)} />
+                </div>
+                {bancoMsg && <p className="text-sm text-gray-600 mb-3">{bancoMsg}</p>}
+                {bancoPreview.length > 0 && (
+                  <>
+                    <div className="overflow-x-auto mb-4">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>{["Nombre", "CUIL", "CBU", "Importe"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {bancoPreview.map((p, i) => (
+                            <tr key={i} className="border-t border-gray-100">
+                              <td className="px-3 py-1.5">{p.nombre}</td>
+                              <td className="px-3 py-1.5 font-mono text-xs">{p.cuil}</td>
+                              <td className="px-3 py-1.5 font-mono text-xs">{p.cbu}</td>
+                              <td className="px-3 py-1.5 font-semibold">${p.importe.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300 bg-gray-50">
+                            <td colSpan={3} className="px-3 py-2 font-bold text-right">Total:</td>
+                            <td className="px-3 py-2 font-bold">${bancoPreview.reduce((s, p) => s + p.importe, 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <Btn onClick={generarArchivoBanco} disabled={!bancoFile || !bancoFecha}>
+                      📥 Descargar Archivo Banco
+                    </Btn>
+                  </>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* ===== RECIBOS ===== */}
         {seccion === "recibos" && (
