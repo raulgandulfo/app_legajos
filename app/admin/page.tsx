@@ -1681,7 +1681,8 @@ export default function AdminPage() {
 
             // Hoja Pagos con estructura del banco
             const headers = ["Forma de pago", "Orden de pago", "Razón social del beneficiario (Opcional)", "Tipo de documento", "CUIT / CUIL", "Fecha de pago", "Importe del pago", "Número de instrumento del pago"];
-            const fechaPago = new Date(bancoFecha + "T12:00:00");
+            const [fy, fm, fd] = bancoFecha.split("-");
+            const fechaPago = `${fd}/${fm}/${fy}`;
             const dataRows = bancoPreview.map(p => ({
               "Forma de pago": "T",
               "Orden de pago": null,
@@ -1704,11 +1705,6 @@ export default function AdminPage() {
             ];
 
             const ws = XLSX.utils.aoa_to_sheet(aoa);
-            // Formato fecha para columna F (índice 5), desde fila 8 (índice 7)
-            for (let i = 0; i < bancoPreview.length; i++) {
-              const cellRef = XLSX.utils.encode_cell({ r: 7 + i, c: 5 });
-              if (ws[cellRef]) ws[cellRef].t = "d";
-            }
             XLSX.utils.book_append_sheet(wb, ws, "Pagos");
 
             const fecha = bancoFecha.replace(/-/g, "");
