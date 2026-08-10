@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Session { username: string; rol: string; }
-interface Asociado { cuil: string; nro_asociado?: string; nro_legajo?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; fecha_salida?: string; activo?: boolean; estado_civil?: string; hijos?: number; }
+interface Asociado { cuil: string; nro_asociado?: string; nro_legajo?: string; nombre_completo: string; dni?: string; domicilio?: string; localidad?: string; provincia?: string; telefono?: string; sector?: string; categoria?: string; fecha_ingreso?: string; fecha_salida?: string; activo?: boolean; estado_civil?: string; hijos?: number; fecha_nacimiento?: string; }
 interface Sector { id: number; nombre: string; }
 interface Prestamo { id: number; cuil_asociado: string; fecha_otorgamiento: string; monto_total: number; cantidad_cuotas: number; prestamos_cuotas?: Cuota[]; maestro_asociados?: { nombre_completo: string }; }
 interface Cuota { id: number; numero_cuota: number; monto_cuota: number; fecha_vencimiento: string; estado: string; }
@@ -76,6 +76,9 @@ export default function AdminPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [sobreescribir, setSobreescribir] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [legajoCuil, setLegajoCuil] = useState<string | null>(null);
+  const [legajoData, setLegajoData] = useState<{ aso: Asociado | null; prestamos: Prestamo[]; sanciones: Sancion[]; medico: AusenciaMedica[]; caps: { id: number; titulo: string; fecha: string; duracion_hs?: number; resultado?: string; observaciones?: string }[] }>({ aso: null, prestamos: [], sanciones: [], medico: [], caps: [] });
+  const [legajoCargando, setLegajoCargando] = useState(false);
 
   // --- Préstamos ---
   const [preTab, setPreTab] = useState("nuevo");
@@ -390,6 +393,20 @@ export default function AdminPage() {
     setGenRecibos(false);
   }
 
+  async function abrirLegajo(cuil: string) {
+    setLegajoCuil(cuil);
+    setLegajoCargando(true);
+    const [asoR, preR, sanR, medR, capR] = await Promise.all([
+      fetch(`/api/asociados?cuil=${cuil}`).then(r => r.json()),
+      fetch(`/api/prestamos?cuil=${cuil}`).then(r => r.json()),
+      fetch(`/api/sanciones?cuil=${cuil}`).then(r => r.json()),
+      fetch(`/api/medico?cuil=${cuil}`).then(r => r.json()),
+      fetch(`/api/capacitaciones?cuil=${cuil}`).then(r => r.json()),
+    ]);
+    setLegajoData({ aso: asoR, prestamos: preR, sanciones: sanR, medico: medR, caps: capR });
+    setLegajoCargando(false);
+  }
+
   const fuenteBuscar = todosAsociados.length > 0 ? todosAsociados : asociados;
   const filtrados = fuenteBuscar.filter(a => {
     if (filtroEstado === "activos" && !a.activo) return false;
@@ -532,6 +549,43 @@ export default function AdminPage() {
                     <div className="text-sm text-gray-500 mt-1">Inasistencias médicas últimos 30 días</div>
                   </div>
                 </div>
+                {/* Cumpleaños del mes */}
+                {(() => {
+                  const mesActual = new Date().getMonth() + 1;
+                  const cumples = asociados
+                    .filter(a => a.activo !== false && a.fecha_nacimiento)
+                    .filter(a => {
+                      const m = parseInt((a.fecha_nacimiento || "").split("-")[1] || "0");
+                      return m === mesActual;
+                    })
+                    .sort((a, b) => {
+                      const da = parseInt((a.fecha_nacimiento || "").split("-")[2] || "0");
+                      const db = parseInt((b.fecha_nacimiento || "").split("-")[2] || "0");
+                      return da - db;
+                    });
+                  if (cumples.length === 0) return null;
+                  const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+                  return (
+                    <div className="bg-white rounded-xl shadow border border-yellow-100 p-5 mb-6">
+                      <h3 className="font-bold text-[#1e293b] mb-3">🎂 Cumpleaños en {meses[mesActual - 1]} ({cumples.length})</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {cumples.map(a => {
+                          const dia = (a.fecha_nacimiento || "").split("-")[2];
+                          const hoy = new Date().getDate();
+                          const esHoy = parseInt(dia) === hoy;
+                          return (
+                            <div key={a.cuil} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border ${esHoy ? "bg-yellow-50 border-yellow-300 font-semibold" : "bg-gray-50 border-gray-200"}`}>
+                              {esHoy && "🎉 "}
+                              <span>{a.nombre_completo}</span>
+                              <span className="text-gray-400 text-xs">({dia}/{mesActual < 10 ? "0" + mesActual : mesActual})</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex gap-3 flex-wrap">
                   {([["asociados","👤 Asociados"],["prestamos","💰 Préstamos"],["sanciones","⚠️ Sanciones"],["inasistencias","🏥 Inasist. Médica"]] as [string,string][]).map(([id,label]) => (
                     <button key={id} onClick={() => setSeccion(id)}
@@ -595,7 +649,8 @@ export default function AdminPage() {
                           <td className="px-4 py-2 font-medium">{a.nombre_completo}</td>
                           <td className="px-4 py-2 text-center">{a.cuil}</td>
                           <td className="px-4 py-2 text-center">{a.sector || "-"}</td>
-                          <td className="px-4 py-2 text-right">
+                          <td className="px-4 py-2 text-right flex gap-2 justify-end">
+                            <button onClick={() => abrirLegajo(a.cuil)} className="text-green-600 hover:underline text-xs">📋 Ver legajo</button>
                             <button onClick={async () => { const r = await fetch(`/api/asociados?cuil=${a.cuil}`); const d = await r.json(); setEditAso(d); }}
                               className="text-blue-500 hover:underline text-xs">✏️ Editar</button>
                           </td>
@@ -637,7 +692,7 @@ export default function AdminPage() {
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-gray-600"><tr>
-                      {["Estado","CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Est. Civil","Hijos","Ingreso","Salida"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
+                      {["Estado","CUIL","Nro Asoc.","Nro Legajo","Nombre","DNI","Domicilio","Localidad","Teléfono","Sector","Categoría","Est. Civil","Hijos","Ingreso","Salida",""].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {listaFiltrada.map(a => (
@@ -661,6 +716,7 @@ export default function AdminPage() {
                           <td className="px-3 py-2">{a.hijos ?? ""}</td>
                           <td className="px-3 py-2">{a.fecha_ingreso}</td>
                           <td className="px-3 py-2 text-red-500">{a.fecha_salida || ""}</td>
+                          <td className="px-3 py-2"><button onClick={() => abrirLegajo(a.cuil)} className="text-green-600 hover:underline text-xs whitespace-nowrap">📋 Ver legajo</button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -1886,6 +1942,132 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      {/* ===== MODAL LEGAJO ===== */}
+      {legajoCuil && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto py-8 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-[#1e293b]">📋 Legajo del Asociado</h2>
+              <button onClick={() => { setLegajoCuil(null); setLegajoData({ aso: null, prestamos: [], sanciones: [], medico: [], caps: [] }); }} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
+            </div>
+            {legajoCargando ? (
+              <div className="p-10 text-center text-gray-400">Cargando...</div>
+            ) : legajoData.aso ? (() => {
+              const a = legajoData.aso!;
+              return (
+                <div className="p-6 space-y-5">
+                  {/* Datos personales */}
+                  <div>
+                    <h3 className="font-bold text-[#1e293b] mb-3 text-sm uppercase tracking-wide text-gray-500">Datos personales</h3>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                      {[
+                        ["Nombre", a.nombre_completo],
+                        ["CUIL", a.cuil],
+                        ["DNI", a.dni],
+                        ["Nro Asociado", a.nro_asociado],
+                        ["Nro Legajo", a.nro_legajo],
+                        ["Sector", a.sector],
+                        ["Categoría", a.categoria],
+                        ["Fecha Ingreso", a.fecha_ingreso],
+                        ["Fecha Nacimiento", a.fecha_nacimiento],
+                        ["Estado Civil", a.estado_civil],
+                        ["Hijos", a.hijos != null ? String(a.hijos) : null],
+                        ["Domicilio", a.domicilio],
+                        ["Localidad", a.localidad],
+                        ["Provincia", a.provincia],
+                        ["Teléfono", a.telefono],
+                        ["Estado", a.activo !== false ? "Activo" : `Baja (${a.fecha_salida || ""})`],
+                      ].filter(([,v]) => v).map(([k, v]) => (
+                        <div key={k as string} className="flex gap-2">
+                          <span className="text-gray-500 w-36 shrink-0">{k}:</span>
+                          <span className="font-medium">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Préstamos */}
+                  <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wide text-gray-500 mb-2">Préstamos ({legajoData.prestamos.length})</h3>
+                    {legajoData.prestamos.length === 0 ? <p className="text-sm text-gray-400">Sin préstamos.</p> : (
+                      <table className="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead className="bg-gray-50"><tr>{["Fecha","Monto","Cuotas","Cuotas pend."].map(h => <th key={h} className="text-left px-3 py-2 text-gray-600">{h}</th>)}</tr></thead>
+                        <tbody>{legajoData.prestamos.map(p => (
+                          <tr key={p.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5">{p.fecha_otorgamiento}</td>
+                            <td className="px-3 py-1.5">${fmt(p.monto_total)}</td>
+                            <td className="px-3 py-1.5">{p.cantidad_cuotas}</td>
+                            <td className="px-3 py-1.5">{(p.prestamos_cuotas || []).filter(c => c.estado === "Pendiente").length}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Sanciones */}
+                  <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wide text-gray-500 mb-2">Sanciones ({legajoData.sanciones.length})</h3>
+                    {legajoData.sanciones.length === 0 ? <p className="text-sm text-gray-400">Sin sanciones.</p> : (
+                      <table className="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead className="bg-gray-50"><tr>{["Tipo","Desde","Hasta","Motivo"].map(h => <th key={h} className="text-left px-3 py-2 text-gray-600">{h}</th>)}</tr></thead>
+                        <tbody>{legajoData.sanciones.map(s => (
+                          <tr key={s.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5">{s.tipo}</td>
+                            <td className="px-3 py-1.5">{s.fecha_desde}</td>
+                            <td className="px-3 py-1.5">{s.fecha_hasta}</td>
+                            <td className="px-3 py-1.5 text-gray-600">{s.motivo}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Capacitaciones */}
+                  <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wide text-gray-500 mb-2">Capacitaciones ({legajoData.caps.length})</h3>
+                    {legajoData.caps.length === 0 ? <p className="text-sm text-gray-400">Sin capacitaciones.</p> : (
+                      <table className="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead className="bg-gray-50"><tr>{["Título","Fecha","Hs","Resultado"].map(h => <th key={h} className="text-left px-3 py-2 text-gray-600">{h}</th>)}</tr></thead>
+                        <tbody>{legajoData.caps.map(c => (
+                          <tr key={c.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5">{c.titulo}</td>
+                            <td className="px-3 py-1.5">{c.fecha}</td>
+                            <td className="px-3 py-1.5">{c.duracion_hs || "-"}</td>
+                            <td className="px-3 py-1.5">{c.resultado || "-"}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Historial médico */}
+                  <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wide text-gray-500 mb-2">Inasistencias Médicas ({legajoData.medico.length})</h3>
+                    {legajoData.medico.length === 0 ? <p className="text-sm text-gray-400">Sin inasistencias.</p> : (
+                      <table className="w-full text-sm border rounded-lg overflow-hidden">
+                        <thead className="bg-gray-50"><tr>{["Desde","Hasta","Motivo"].map(h => <th key={h} className="text-left px-3 py-2 text-gray-600">{h}</th>)}</tr></thead>
+                        <tbody>{legajoData.medico.map(m => (
+                          <tr key={m.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5">{m.fecha_desde}</td>
+                            <td className="px-3 py-1.5">{m.fecha_hasta}</td>
+                            <td className="px-3 py-1.5 text-gray-600">{m.motivo}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Btn variant="secondary" onClick={() => { setLegajoCuil(null); setLegajoData({ aso: null, prestamos: [], sanciones: [], medico: [], caps: [] }); }}>Cerrar</Btn>
+                    <Btn onClick={() => { setEditAso(a); setAsoTab("buscar"); setSeccion("asociados"); setLegajoCuil(null); setLegajoData({ aso: null, prestamos: [], sanciones: [], medico: [], caps: [] }); }}>✏️ Editar este asociado</Btn>
+                  </div>
+                </div>
+              );
+            })() : <div className="p-10 text-center text-gray-400">No se encontraron datos.</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1980,6 +2162,7 @@ function AsoForm({ sectores, categorias, inicial, onSave }: {
         ) : <Input value={form.categoria || ""} onChange={f("categoria")} />}
       </div>
       <div><Label>Fecha de Ingreso</Label><Input type="date" value={form.fecha_ingreso || ""} onChange={f("fecha_ingreso")} /></div>
+      <div><Label>Fecha de Nacimiento</Label><Input type="date" value={form.fecha_nacimiento || ""} onChange={f("fecha_nacimiento")} /></div>
       <div>
         <Label>Fecha de Salida (baja)</Label>
         <div className="flex gap-2 items-center">
