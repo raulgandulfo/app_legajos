@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { cookies } from "next/headers";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   let supabase;
@@ -14,13 +15,16 @@ export async function POST(req: NextRequest) {
     .from("usuarios")
     .select("*")
     .eq("username", username)
-    .eq("password", password)
     .single();
 
   if (error && error.code !== "PGRST116") {
     return NextResponse.json({ error: "Error de base de datos: " + error.message }, { status: 500 });
   }
   if (!data) return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
+
+  const passwordField = data.password_hash ?? data.password;
+  const valid = await bcrypt.compare(password, passwordField);
+  if (!valid) return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
 
   const cookieStore = await cookies();
   cookieStore.set("session", JSON.stringify({ username: data.username, rol: data.rol, cuil: data.cuil_asociado }), {
