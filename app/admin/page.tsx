@@ -151,6 +151,7 @@ export default function AdminPage() {
   const [bancoFecha, setBancoFecha] = useState(new Date().toISOString().slice(0, 10));
   const [bancoPreview, setBancoPreview] = useState<{ nombre: string; cuil: string; cbu: string; importe: number }[]>([]);
   const [bancoMsg, setBancoMsg] = useState("");
+  const [bancoEfectivo, setBancoEfectivo] = useState<{ nombre: string; formaPago: string; importe: number }[]>([]);
 
   // --- Usuarios ---
   const [uTab, setUTab] = useState("nuevo");
@@ -1726,7 +1727,16 @@ export default function AdminPage() {
                 cbu: String(r["CBU"] || "").trim(),
                 importe: Number(r["Importe"] || 0),
               }));
+            const efectivo = rows
+              .filter(r => String(r["Forma de Pago"] || "").trim() !== "Depósito Bancario")
+              .map(r => ({
+                nombre: String(r["Nombre y Apellido"] || "").trim(),
+                formaPago: String(r["Forma de Pago"] || "").trim(),
+                importe: Number(r["Importe"] || 0),
+              }))
+              .filter(r => r.nombre && r.importe > 0);
             setBancoPreview(pagos);
+            setBancoEfectivo(efectivo);
             setBancoMsg(pagos.length > 0 ? `${pagos.length} transferencias encontradas.` : "No se encontraron filas con 'Depósito Bancario'.");
           };
 
@@ -1844,6 +1854,33 @@ export default function AdminPage() {
                       📥 Descargar Archivo Banco
                     </Btn>
                   </>
+                )}
+                {bancoEfectivo.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-bold text-[#1e293b] mb-3">💵 Pagos en Efectivo / Otros ({bancoEfectivo.length})</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>{["Nombre", "Forma de Pago", "Importe"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {bancoEfectivo.map((p, i) => (
+                            <tr key={i} className="border-t border-gray-100">
+                              <td className="px-3 py-1.5">{p.nombre}</td>
+                              <td className="px-3 py-1.5 text-gray-500">{p.formaPago || "—"}</td>
+                              <td className="px-3 py-1.5 font-semibold">${p.importe.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300 bg-gray-50">
+                            <td colSpan={2} className="px-3 py-2 font-bold text-right">Total:</td>
+                            <td className="px-3 py-2 font-bold">${bancoEfectivo.reduce((s, p) => s + p.importe, 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
                 )}
               </Card>
             </div>
