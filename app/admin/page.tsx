@@ -1761,7 +1761,33 @@ export default function AdminPage() {
             ];
 
             const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+            // Hoja Ayuda (vacía con versión)
+            const wsAyuda = XLSX.utils.aoa_to_sheet([[null, null, null, "V2.9"]]);
+            // Hoja Beneficiarios
+            const wsBenef = XLSX.utils.aoa_to_sheet([
+              [null],[null],[null],[null],[null],
+              ["DATOS DEL BENEFICIARIO DEL PAGO"],
+              ["CUIT","Domicilio","Código postal","Localidad","Provincia","Email del beneficiario","Teléfono celular"],
+            ]);
+            // Hoja Liquidaciónes
+            const wsLiq = XLSX.utils.aoa_to_sheet([
+              [null],[null],[null],[null],[null],
+              ["INFORMACIÓN DEL DOCUMENTO"],
+              ["Orden de pago","Tipo de comprobante","Número de comprobante","Fecha de comprobante","Número de cuota\n(opcional)","Importe total comprobante"],
+            ]);
+            // Hoja Retenciones
+            const wsRet = XLSX.utils.aoa_to_sheet([
+              [null],[null],[null],[null],[null],
+              ["DATOS DE LA RETENCIÓN",null,null,null,null,null,null,null,null,"PROPIO GANANCIAS (GA)"],
+              ["Tipo de retención","Orden de pago","Número de retención","Alicuota","Importe sujeto a la retención","Importe retenido","Concepto de la retención","Observaciones\n(Opcional)","Propios retención \n(Opcional)","Total facturado","Total retenido"],
+            ]);
+
+            XLSX.utils.book_append_sheet(wb, wsAyuda, "Ayuda");
             XLSX.utils.book_append_sheet(wb, ws, "Pagos");
+            XLSX.utils.book_append_sheet(wb, wsBenef, "Beneficiarios");
+            XLSX.utils.book_append_sheet(wb, wsLiq, "Liquidaciónes");
+            XLSX.utils.book_append_sheet(wb, wsRet, "Retenciones");
 
             const fecha = bancoFecha.replace(/-/g, "");
             XLSX.writeFile(wb, `Archivo_Banco_${fecha}.xlsx`);
