@@ -1047,7 +1047,7 @@ export default function AdminPage() {
               <Card>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <AsoSearch asociados={asociados} value={antCuil} onChange={cuil => setAntCuil(cuil)} />
-                  <div><Label>Fecha de solicitud</Label><Input type="date" value={antFecha} onChange={e => setAntFecha(e.target.value)} /></div>
+                  <div><Label>Fecha de Pago</Label><Input type="date" value={antFecha} onChange={e => setAntFecha(e.target.value)} /></div>
                   <div><Label>Monto ($)</Label><Input type="text" inputMode="numeric" value={antMonto === 0 ? "" : antMonto.toLocaleString("es-AR")} onChange={e => { const raw = e.target.value.replace(/\./g, "").replace(/,/g, ""); const n = parseInt(raw, 10); setAntMonto(isNaN(n) ? 0 : n); }} placeholder="0" /></div>
                   <div><Label>Observaciones (opcional)</Label><Input value={antObs} onChange={e => setAntObs(e.target.value)} /></div>
                 </div>
@@ -1085,7 +1085,7 @@ export default function AdminPage() {
                     </div>
                     <div className="grid grid-cols-4 gap-2 items-end">
                       <div><Label>Monto</Label><Input type="number" value={antEditData[a.id]?.monto ?? a.monto} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], monto: Number(e.target.value) } }))} /></div>
-                      <div><Label>Fecha</Label><Input type="date" value={antEditData[a.id]?.fecha ?? a.fecha_solicitud} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], fecha: e.target.value } }))} /></div>
+                      <div><Label>Fecha de Pago</Label><Input type="date" value={antEditData[a.id]?.fecha ?? a.fecha_solicitud} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], fecha: e.target.value } }))} /></div>
                       <div><Label>Estado</Label>
                         <Select value={antEditData[a.id]?.estado ?? a.estado} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], estado: e.target.value } }))}>
                           {["Pendiente","Descontado"].map(s => <option key={s}>{s}</option>)}
