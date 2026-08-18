@@ -22,8 +22,12 @@ export async function POST(req: NextRequest) {
   }
   if (!data) return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
 
-  const passwordField = data.password_hash ?? data.password;
-  const valid = await bcrypt.compare(password, passwordField);
+  let valid = false;
+  if (data.password_hash) {
+    valid = await bcrypt.compare(password, data.password_hash);
+  } else {
+    valid = password === data.password;
+  }
   if (!valid) return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
 
   const cookieStore = await cookies();
