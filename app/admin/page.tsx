@@ -97,6 +97,20 @@ export default function AdminPage() {
   const [preRepVtoDesde, setPreRepVtoDesde] = useState("");
   const [preRepVtoHasta, setPreRepVtoHasta] = useState("");
   const [preRepLoading, setPreRepLoading] = useState(false);
+  // Anticipos
+  const [antTab, setAntTab] = useState("nuevo");
+  const [antCuil, setAntCuil] = useState("");
+  const [antMonto, setAntMonto] = useState(0);
+  const [antFecha, setAntFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [antObs, setAntObs] = useState("");
+  const [antEditCuil, setAntEditCuil] = useState("");
+  const [anticipos, setAnticipos] = useState<{ id: number; cuil_asociado: string; monto: number; fecha_solicitud: string; estado: string; observaciones?: string; maestro_asociados?: { nombre_completo: string; nro_asociado?: string; nro_legajo?: string } }[]>([]);
+  const [antEditData, setAntEditData] = useState<Record<number, { monto: number; fecha: string; estado: string; obs: string }>>({});
+  const [antRepCuil, setAntRepCuil] = useState("");
+  const [antRepData, setAntRepData] = useState<typeof anticipos>([]);
+  const [antRepDesde, setAntRepDesde] = useState("");
+  const [antRepHasta, setAntRepHasta] = useState("");
+  const [antRepLoading, setAntRepLoading] = useState(false);
 
   // --- Sanciones ---
   const [sanTab, setSanTab] = useState("nueva");
@@ -421,6 +435,7 @@ export default function AdminPage() {
     { id: "dashboard", label: "🏠 Inicio" },
     { id: "asociados", label: "👤 Asociados" },
     { id: "prestamos", label: "💰 Préstamos" },
+    { id: "anticipos", label: "⏩ Anticipos" },
     { id: "sanciones", label: "⚠️ Sanciones" },
     { id: "capacitaciones", label: "🎓 Capacitaciones" },
     { id: "inasistencias", label: "🏥 Inasist. Médica" },
@@ -1011,6 +1026,168 @@ export default function AdminPage() {
                       setPreRepLoading(false);
                     }}>{preRepLoading ? "Generando..." : "📊 Exportar XLSX"}</Btn>
                   </div>
+                </Card>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== ANTICIPOS ===== */}
+        {seccion === "anticipos" && (
+          <div>
+            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">⏩ Gestión de Anticipos</h1>
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 w-fit">
+              {[["nuevo","➕ Registrar"],["editar","✏️ Editar Anticipo"],["reporte","📋 Reporte"]].map(([id,label]) => (
+                <button key={id} onClick={() => setAntTab(id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${antTab === id ? "bg-white text-[#1e293b] shadow" : "text-gray-500"}`}>{label}</button>
+              ))}
+            </div>
+
+            {antTab === "nuevo" && (
+              <Card>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <AsoSearch asociados={asociados} value={antCuil} onChange={cuil => setAntCuil(cuil)} />
+                  <div><Label>Fecha de solicitud</Label><Input type="date" value={antFecha} onChange={e => setAntFecha(e.target.value)} /></div>
+                  <div><Label>Monto ($)</Label><Input type="text" inputMode="numeric" value={antMonto === 0 ? "" : antMonto.toLocaleString("es-AR")} onChange={e => { const raw = e.target.value.replace(/\./g, "").replace(/,/g, ""); const n = parseInt(raw, 10); setAntMonto(isNaN(n) ? 0 : n); }} placeholder="0" /></div>
+                  <div><Label>Observaciones (opcional)</Label><Input value={antObs} onChange={e => setAntObs(e.target.value)} /></div>
+                </div>
+                <Btn disabled={!antCuil || antMonto <= 0} onClick={async () => {
+                  await fetch("/api/anticipos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: antCuil, monto: antMonto, fecha_solicitud: antFecha, observaciones: antObs }) });
+                  setAntCuil(""); setAntMonto(0); setAntObs("");
+                  setMsg({ text: "Anticipo registrado correctamente.", ok: true });
+                }}>✅ Confirmar Anticipo</Btn>
+              </Card>
+            )}
+
+            {antTab === "editar" && (
+              <Card>
+                <div className="mb-4">
+                  <AsoSearch asociados={asociados} value={antEditCuil} onChange={async cuil => {
+                    setAntEditCuil(cuil);
+                    const r = await fetch(`/api/anticipos?cuil=${cuil}`);
+                    const d = await r.json();
+                    setAnticipos(d);
+                    const ed: Record<number, { monto: number; fecha: string; estado: string; obs: string }> = {};
+                    d.forEach((a: typeof anticipos[0]) => { ed[a.id] = { monto: a.monto, fecha: a.fecha_solicitud, estado: a.estado, obs: a.observaciones || "" }; });
+                    setAntEditData(ed);
+                  }} label="Asociado" />
+                </div>
+                {anticipos.map(a => (
+                  <div key={a.id} className="border border-gray-200 rounded-xl p-4 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="font-bold">Anticipo #{a.id} — {a.fecha_solicitud} | ${fmt(a.monto)}</div>
+                      <Btn variant="danger" className="text-xs py-1 px-2" onClick={async () => {
+                        if (!confirm(`¿Eliminar el anticipo #${a.id}?`)) return;
+                        await fetch("/api/anticipos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) });
+                        setAnticipos(prev => prev.filter(x => x.id !== a.id));
+                        setMsg({ text: `Anticipo #${a.id} eliminado.`, ok: true });
+                      }}>🗑️ Eliminar</Btn>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 items-end">
+                      <div><Label>Monto</Label><Input type="number" value={antEditData[a.id]?.monto ?? a.monto} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], monto: Number(e.target.value) } }))} /></div>
+                      <div><Label>Fecha</Label><Input type="date" value={antEditData[a.id]?.fecha ?? a.fecha_solicitud} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], fecha: e.target.value } }))} /></div>
+                      <div><Label>Estado</Label>
+                        <Select value={antEditData[a.id]?.estado ?? a.estado} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], estado: e.target.value } }))}>
+                          {["Pendiente","Descontado"].map(s => <option key={s}>{s}</option>)}
+                        </Select>
+                      </div>
+                      <div><Label>Observaciones</Label><Input value={antEditData[a.id]?.obs ?? (a.observaciones || "")} onChange={e => setAntEditData(prev => ({ ...prev, [a.id]: { ...prev[a.id], obs: e.target.value } }))} /></div>
+                    </div>
+                    <Btn variant="secondary" className="mt-2" onClick={async () => {
+                      const ed = antEditData[a.id];
+                      await fetch("/api/anticipos", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id, monto: ed.monto, fecha_solicitud: ed.fecha, estado: ed.estado, observaciones: ed.obs }) });
+                      setMsg({ text: `Anticipo #${a.id} actualizado.`, ok: true });
+                    }}>💾 Guardar cambios</Btn>
+                  </div>
+                ))}
+                {anticipos.length === 0 && antEditCuil && <p className="text-sm text-gray-400">Sin anticipos registrados para este asociado.</p>}
+              </Card>
+            )}
+
+            {antTab === "reporte" && (
+              <div className="space-y-4">
+                <Card>
+                  <h3 className="font-bold text-sm mb-3">Historial por Asociado</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div className="md:col-span-2"><AsoSearch asociados={asociados} value={antRepCuil} onChange={cuil => { setAntRepCuil(cuil); setAntRepData([]); }} label="Asociado" /></div>
+                    <div className="flex items-end">
+                      <Btn disabled={!antRepCuil || antRepLoading} onClick={async () => {
+                        setAntRepLoading(true);
+                        const r = await fetch(`/api/anticipos?cuil=${antRepCuil}`);
+                        setAntRepData(await r.json());
+                        setAntRepLoading(false);
+                      }}>{antRepLoading ? "Buscando..." : "🔍 Ver historial"}</Btn>
+                    </div>
+                  </div>
+                  {antRepData.length > 0 && (
+                    <div>
+                      <div className="overflow-x-auto mb-3">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","Nombre","Fecha","Monto","Estado","Observaciones"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {antRepData.map(a => (
+                              <tr key={a.id} className="border-t border-gray-100">
+                                <td className="px-3 py-1.5">{a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "-"}</td>
+                                <td className="px-3 py-1.5">{a.maestro_asociados?.nombre_completo}</td>
+                                <td className="px-3 py-1.5">{a.fecha_solicitud}</td>
+                                <td className="px-3 py-1.5">${fmt(a.monto)}</td>
+                                <td className="px-3 py-1.5"><span className={`px-2 py-0.5 rounded text-xs ${a.estado === "Descontado" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>{a.estado}</span></td>
+                                <td className="px-3 py-1.5 text-gray-500">{a.observaciones || "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <Btn variant="secondary" onClick={async () => {
+                        const XLSX = await import("xlsx");
+                        const rows = antRepData.map(a => ({
+                          "Nº LEGAJO": a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "",
+                          "NOMBRE": a.maestro_asociados?.nombre_completo || "",
+                          "CODIGO": "0408",
+                          "FECHA": a.fecha_solicitud,
+                          "MONTO": a.monto,
+                          "ESTADO": a.estado,
+                          "OBSERVACIONES": a.observaciones || "",
+                        }));
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
+                        XLSX.writeFile(wb, `anticipos_${antRepCuil}.xlsx`);
+                      }}>📊 Exportar XLSX</Btn>
+                    </div>
+                  )}
+                </Card>
+
+                <Card>
+                  <h3 className="font-bold text-sm mb-3">Reporte por Fechas</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div><Label>Desde</Label><Input type="date" value={antRepDesde} onChange={e => setAntRepDesde(e.target.value)} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={antRepHasta} onChange={e => setAntRepHasta(e.target.value)} /></div>
+                  </div>
+                  <Btn disabled={antRepLoading} onClick={async () => {
+                    setAntRepLoading(true);
+                    const params = new URLSearchParams({ reporte: "1" });
+                    if (antRepDesde) params.set("fecha_desde", antRepDesde);
+                    if (antRepHasta) params.set("fecha_hasta", antRepHasta);
+                    const r = await fetch(`/api/anticipos?${params}`);
+                    const d: typeof anticipos = await r.json();
+                    if (!d.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setAntRepLoading(false); return; }
+                    const XLSX = await import("xlsx");
+                    const rows = d.map(a => ({
+                      "Nº LEGAJO": a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "",
+                      "NOMBRE": a.maestro_asociados?.nombre_completo || "",
+                      "CODIGO": "0408",
+                      "FECHA": a.fecha_solicitud,
+                      "MONTO": a.monto,
+                      "ESTADO": a.estado,
+                      "OBSERVACIONES": a.observaciones || "",
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
+                    XLSX.writeFile(wb, "anticipos_reporte.xlsx");
+                    setAntRepLoading(false);
+                  }}>{antRepLoading ? "Generando..." : "📊 Exportar XLSX"}</Btn>
                 </Card>
               </div>
             )}
