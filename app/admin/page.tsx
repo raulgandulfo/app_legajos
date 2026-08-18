@@ -145,6 +145,8 @@ export default function AdminPage() {
   const [auditData, setAuditData] = useState<{ id: number; username: string; accion: string; detalle: string; fecha: string }[]>([]);
   const [auditCargando, setAuditCargando] = useState(false);
   const [auditUser, setAuditUser] = useState("");
+  const [auditDesde, setAuditDesde] = useState("");
+  const [auditHasta, setAuditHasta] = useState("");
 
   // --- Archivo Banco ---
   const [bancoFile, setBancoFile] = useState<File | null>(null);
@@ -462,9 +464,13 @@ export default function AdminPage() {
       {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
       <aside className={`fixed md:static z-40 top-0 left-0 h-full md:h-auto w-64 md:w-56 bg-[#1e293b] text-[#e2e8f0] flex flex-col p-4 min-h-screen flex-shrink-0 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="mb-4 flex items-start justify-between">
-          <div>
-            <div className="font-bold text-sm">⚙️ Panel de Control</div>
-            <div className="text-xs opacity-60">{session.username} · {session.rol.toUpperCase()}</div>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain rounded-lg bg-white p-0.5" />
+            <div>
+              <div className="font-bold text-sm">Panel de Control</div>
+              <div className="text-xs opacity-60">{session.username} · {session.rol.toUpperCase()}</div>
+            </div>
           </div>
           <button className="md:hidden text-[#94a3b8] hover:text-white text-xl leading-none" onClick={() => setSidebarOpen(false)}>✕</button>
         </div>
@@ -1607,7 +1613,12 @@ export default function AdminPage() {
 
         {/* ===== LOG DE ACTIVIDAD ===== */}
         {seccion === "auditlog" && session.rol === "admin" && (() => {
-          const filtrados = auditUser ? auditData.filter(r => r.username === auditUser) : auditData;
+          const filtrados = auditData.filter(r => {
+            if (auditUser && r.username !== auditUser) return false;
+            if (auditDesde && r.fecha < auditDesde) return false;
+            if (auditHasta && r.fecha > auditHasta + "T23:59:59") return false;
+            return true;
+          });
           const usuarios_audit = [...new Set(auditData.map(r => r.username))].sort();
           return (
             <div>
@@ -1620,13 +1631,18 @@ export default function AdminPage() {
                   </Btn>
                   {usuarios_audit.length > 0 && (
                     <div>
-                      <Label>Filtrar por usuario</Label>
+                      <Label>Usuario</Label>
                       <Select value={auditUser} onChange={e => setAuditUser(e.target.value)}>
                         <option value="">Todos</option>
                         {usuarios_audit.map(u => <option key={u} value={u}>{u}</option>)}
                       </Select>
                     </div>
                   )}
+                  {auditData.length > 0 && (<>
+                    <div><Label>Desde</Label><Input type="date" value={auditDesde} onChange={e => setAuditDesde(e.target.value)} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={auditHasta} onChange={e => setAuditHasta(e.target.value)} /></div>
+                    {(auditDesde || auditHasta || auditUser) && <Btn variant="secondary" onClick={() => { setAuditDesde(""); setAuditHasta(""); setAuditUser(""); }}>✕ Limpiar</Btn>}
+                  </>)}
                   {auditData.length > 0 && (
                     <Btn variant="secondary" onClick={async () => {
                       const XLSX = await import("xlsx");
