@@ -181,6 +181,12 @@ export default function AdminPage() {
   const [liqFile, setLiqFile] = useState<File | null>(null);
   const [liqPeriodo, setLiqPeriodo] = useState("");
   const [liqCargando, setLiqCargando] = useState(false);
+  const [excelTab, setExcelTab] = useState("cargar");
+  const [periodoBusq, setPeriodoBusq] = useState("");
+  const [editLiqPeriodo, setEditLiqPeriodo] = useState("");
+  const [editLiqCuil, setEditLiqCuil] = useState("");
+  const [editLiqFile, setEditLiqFile] = useState<File | null>(null);
+  const [editLiqCargando, setEditLiqCargando] = useState(false);
 
   // --- Recibos ---
   const [periodosSel, setPeriodosSel] = useState<string[]>([]);
@@ -1868,37 +1874,103 @@ export default function AdminPage() {
         {/* ===== CARGAR EXCEL ===== */}
         {seccion === "excel" && session.rol === "admin" && (
           <div>
-            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">📁 Cargar Liquidaciones</h1>
-            <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">💡 Cada Excel que subás se acumula como historial. Nunca se pisa información anterior.</p>
-            <Card>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
-                <input type="file" accept=".xls,.xlsx" onChange={e => setLiqFile(e.target.files?.[0] || null)} className="hidden" id="liq-file" />
-                <label htmlFor="liq-file" className="cursor-pointer">
-                  <div className="text-3xl mb-2">📊</div>
-                  <div className="text-sm text-gray-500">{liqFile ? liqFile.name : "Seleccioná el Excel de liquidaciones (exportado de Onvio)"}</div>
-                </label>
-              </div>
-              <div className="mb-4"><Label>Nombre del período</Label><Input value={liqPeriodo} onChange={e => setLiqPeriodo(e.target.value)} placeholder="Ej: JUNIO 2026 - 1RA QUINCENA" /></div>
-              {liqPeriodo && periodos.includes(liqPeriodo) && <p className="text-amber-600 text-sm bg-amber-50 p-3 rounded-lg mb-4">⚠️ El período <b>{liqPeriodo}</b> ya fue cargado. Si cargás de nuevo se duplicarán los registros.</p>}
-              <Btn onClick={cargarLiquidacion} disabled={!liqFile || !liqPeriodo || liqCargando}>{liqCargando ? "Cargando..." : "📤 Cargar Liquidación"}</Btn>
-            </Card>
-            {periodos.length > 0 && (
+            <h1 className="text-2xl font-bold text-[#1e293b] mb-4">📁 Liquidaciones</h1>
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 border border-gray-200 w-fit">
+              {[["cargar","📤 Cargar Excel"],["editar","✏️ Corregir por Asociado"]].map(([id,label]) => (
+                <button key={id} onClick={() => setExcelTab(id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${excelTab === id ? "bg-white text-[#1e293b] shadow" : "text-gray-500"}`}>{label}</button>
+              ))}
+            </div>
+
+            {excelTab === "cargar" && (<>
+              <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">💡 Cada Excel que subás se acumula como historial. Nunca se pisa información anterior.</p>
               <Card>
-                <h3 className="font-bold mb-3">Períodos ya cargados:</h3>
-                <ul className="space-y-1">
-                  {periodos.map(p => (
-                    <li key={p} className="flex items-center justify-between text-sm text-gray-600 hover:bg-gray-50 px-2 py-1 rounded">
-                      <span>• {p}</span>
-                      <button onClick={async () => {
-                        if (!confirm(`¿Borrar todos los registros de "${p}"? Esta acción no se puede deshacer.`)) return;
-                        const r = await fetch("/api/liquidaciones", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodo: p }) });
-                        const d = await r.json();
-                        if (d.ok) { setMsg({ text: `Período "${p}" eliminado.`, ok: true }); fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos); }
-                        else setMsg({ text: `Error: ${d.error}`, ok: false });
-                      }} className="text-red-400 hover:text-red-600 text-xs ml-4">🗑️ Borrar</button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
+                  <input type="file" accept=".xls,.xlsx" onChange={e => setLiqFile(e.target.files?.[0] || null)} className="hidden" id="liq-file" />
+                  <label htmlFor="liq-file" className="cursor-pointer">
+                    <div className="text-3xl mb-2">📊</div>
+                    <div className="text-sm text-gray-500">{liqFile ? liqFile.name : "Seleccioná el Excel de liquidaciones (exportado de Onvio)"}</div>
+                  </label>
+                </div>
+                <div className="mb-4"><Label>Nombre del período</Label><Input value={liqPeriodo} onChange={e => setLiqPeriodo(e.target.value)} placeholder="Ej: JUNIO 2026 - 1RA QUINCENA" /></div>
+                {liqPeriodo && periodos.includes(liqPeriodo) && <p className="text-amber-600 text-sm bg-amber-50 p-3 rounded-lg mb-4">⚠️ El período <b>{liqPeriodo}</b> ya fue cargado. Si cargás de nuevo se duplicarán los registros.</p>}
+                <Btn onClick={cargarLiquidacion} disabled={!liqFile || !liqPeriodo || liqCargando}>{liqCargando ? "Cargando..." : "📤 Cargar Liquidación"}</Btn>
+              </Card>
+              {periodos.length > 0 && (
+                <Card>
+                  <h3 className="font-bold mb-3">Períodos ya cargados:</h3>
+                  <Input placeholder="Buscar período..." value={periodoBusq} onChange={e => setPeriodoBusq(e.target.value)} className="mb-3" />
+                  <ul className="space-y-1">
+                    {periodos.filter(p => p.toLowerCase().includes(periodoBusq.toLowerCase())).map(p => (
+                      <li key={p} className="flex items-center justify-between text-sm text-gray-600 hover:bg-gray-50 px-2 py-1 rounded">
+                        <span>• {p}</span>
+                        <button onClick={async () => {
+                          if (!confirm(`¿Borrar todos los registros de "${p}"? Esta acción no se puede deshacer.`)) return;
+                          const r = await fetch("/api/liquidaciones", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodo: p }) });
+                          const d = await r.json();
+                          if (d.ok) { setMsg({ text: `Período "${p}" eliminado.`, ok: true }); fetch("/api/liquidaciones?list=1").then(r => r.json()).then(setPeriodos); }
+                          else setMsg({ text: `Error: ${d.error}`, ok: false });
+                        }} className="text-red-400 hover:text-red-600 text-xs ml-4">🗑️ Borrar</button>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+            </>)}
+
+            {excelTab === "editar" && (
+              <Card>
+                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Corregí la liquidación de un asociado en un período específico. Se borran solo sus filas en ese período y se reemplazan con el Excel que subas.</p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label>Período a corregir</Label>
+                    <Select value={editLiqPeriodo} onChange={e => setEditLiqPeriodo(e.target.value)}>
+                      <option value="">Seleccioná un período</option>
+                      {periodos.map(p => <option key={p} value={p}>{p}</option>)}
+                    </Select>
+                  </div>
+                  <AsoSearch asociados={asociados} value={editLiqCuil} onChange={cuil => setEditLiqCuil(cuil)} label="Asociado a corregir" />
+                </div>
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
+                  <input type="file" accept=".xls,.xlsx" onChange={e => setEditLiqFile(e.target.files?.[0] || null)} className="hidden" id="edit-liq-file" />
+                  <label htmlFor="edit-liq-file" className="cursor-pointer">
+                    <div className="text-3xl mb-2">📊</div>
+                    <div className="text-sm text-gray-500">{editLiqFile ? editLiqFile.name : "Excel con los datos correctos del asociado"}</div>
+                  </label>
+                </div>
+                <Btn disabled={!editLiqPeriodo || !editLiqCuil || !editLiqFile || editLiqCargando} onClick={async () => {
+                  if (!editLiqFile || !editLiqPeriodo || !editLiqCuil) return;
+                  setEditLiqCargando(true);
+                  const XLSX = await import("xlsx");
+                  const buf = await editLiqFile.arrayBuffer();
+                  const wb = XLSX.read(buf, { type: "array", raw: false, codepage: 1252 });
+                  const ws = wb.Sheets[wb.SheetNames[0]];
+                  const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(ws, { defval: null, raw: false });
+                  function col(r: Record<string, unknown>, ...keys: string[]): unknown { for (const k of keys) { if (r[k] !== null && r[k] !== undefined) return r[k]; } return null; }
+                  const todasFilas = rows.map(r => ({
+                    cuil: String(r["CUIL"] || "").replace(/-/g, "").replace(/\s/g, "").trim(),
+                    periodo: editLiqPeriodo,
+                    nro_legajo: String(col(r, "Nro. de Legajo", "Nro. Legajo", "Nro Legajo", "Legajo") || "").trim() || null,
+                    nombre_completo: String(col(r, "Apellido y Nombre", "Nombre y Apellido", "Nombre Completo", "Nombre") || "").trim() || null,
+                    descripcion: String(col(r, "Descripción Concepto", "Descripcion Concepto", "Descripción", "Descripcion", "Concepto") || "").trim(),
+                    tipo_concepto: String(col(r, "Tipo de Concepto", "Tipo Concepto", "Tipo") || "").trim(),
+                    cantidad: parseArgNum(col(r, "Cantidad", "Cant.", "Cant", "Unidades", "Hs.", "Horas")),
+                    importe: parseArgNum(col(r, "Importe Calc", "Importe Calculado", "Importe", "Monto")),
+                    sector: String(col(r, "Sector", "Sección", "Seccion", "Area", "Área") || "").trim() || null,
+                    categoria: String(col(r, "Categoría", "Categoria", "Cat.", "Categ.") || "").trim() || null,
+                    jornal_basico: parseArgNum(col(r, "Jornal / Básico", "Jornal/Básico", "Jornal/Basico", "Jornal Básico", "Jornal Basico", "Jornal")),
+                    neto: parseArgNum(col(r, "NETO", "Neto", "Neto a Cobrar")),
+                    haberes_rem: parseArgNum(col(r, "Haberes remunerativos", "Haberes Remunerativos", "Total Remunerativos")),
+                    haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
+                    retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
+                  })).filter(f => f.cuil === editLiqCuil);
+                  if (!todasFilas.length) { setMsg({ text: "No se encontraron filas para ese CUIL en el Excel.", ok: false }); setEditLiqCargando(false); return; }
+                  await fetch("/api/liquidaciones/cuil", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: editLiqCuil, periodo: editLiqPeriodo }) });
+                  const r = await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas: todasFilas, reemplazar: false }) });
+                  const d = await r.json();
+                  setMsg({ text: `✅ ${d.insertados} filas reemplazadas para el asociado en "${editLiqPeriodo}".`, ok: true });
+                  setEditLiqCargando(false);
+                }}>{editLiqCargando ? "Procesando..." : "✅ Reemplazar liquidación"}</Btn>
               </Card>
             )}
           </div>
