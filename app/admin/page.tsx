@@ -1920,7 +1920,7 @@ export default function AdminPage() {
 
             {excelTab === "editar" && (
               <Card>
-                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Corregí la liquidación de un asociado en un período específico. Se borran solo sus filas en ese período y se reemplazan con el Excel que subas.</p>
+                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg mb-4">Subí el Excel con los datos correctos (puede tener uno o varios asociados). Se reemplazarán solo las filas de los CUILs que aparezcan en el Excel para el período seleccionado.</p>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <Label>Período a corregir</Label>
@@ -1929,17 +1929,16 @@ export default function AdminPage() {
                       {periodos.map(p => <option key={p} value={p}>{p}</option>)}
                     </Select>
                   </div>
-                  <AsoSearch asociados={asociados} value={editLiqCuil} onChange={cuil => setEditLiqCuil(cuil)} label="Asociado a corregir" />
                 </div>
                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors mb-4">
                   <input type="file" accept=".xls,.xlsx" onChange={e => setEditLiqFile(e.target.files?.[0] || null)} className="hidden" id="edit-liq-file" />
                   <label htmlFor="edit-liq-file" className="cursor-pointer">
                     <div className="text-3xl mb-2">📊</div>
-                    <div className="text-sm text-gray-500">{editLiqFile ? editLiqFile.name : "Excel con los datos correctos del asociado"}</div>
+                    <div className="text-sm text-gray-500">{editLiqFile ? editLiqFile.name : "Excel con los datos corregidos (uno o varios asociados)"}</div>
                   </label>
                 </div>
-                <Btn disabled={!editLiqPeriodo || !editLiqCuil || !editLiqFile || editLiqCargando} onClick={async () => {
-                  if (!editLiqFile || !editLiqPeriodo || !editLiqCuil) return;
+                <Btn disabled={!editLiqPeriodo || !editLiqFile || editLiqCargando} onClick={async () => {
+                  if (!editLiqFile || !editLiqPeriodo) return;
                   setEditLiqCargando(true);
                   const XLSX = await import("xlsx");
                   const buf = await editLiqFile.arrayBuffer();
@@ -1963,12 +1962,15 @@ export default function AdminPage() {
                     haberes_rem: parseArgNum(col(r, "Haberes remunerativos", "Haberes Remunerativos", "Total Remunerativos")),
                     haberes_no_rem: parseArgNum(col(r, "Haberes No remunerativos", "Haberes No Remunerativos", "Total No Remunerativos")),
                     retenciones: parseArgNum(col(r, "Retenciones", "Total Retenciones", "Total de Retenciones")),
-                  })).filter(f => f.cuil === editLiqCuil);
-                  if (!todasFilas.length) { setMsg({ text: "No se encontraron filas para ese CUIL en el Excel.", ok: false }); setEditLiqCargando(false); return; }
-                  await fetch("/api/liquidaciones/cuil", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil: editLiqCuil, periodo: editLiqPeriodo }) });
+                  })).filter(f => f.cuil);
+                  const cuils = [...new Set(todasFilas.map(f => f.cuil))];
+                  if (!cuils.length) { setMsg({ text: "No se encontraron CUILs válidos en el Excel.", ok: false }); setEditLiqCargando(false); return; }
+                  for (const cuil of cuils) {
+                    await fetch("/api/liquidaciones/cuil", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cuil, periodo: editLiqPeriodo }) });
+                  }
                   const r = await fetch("/api/liquidaciones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filas: todasFilas, reemplazar: false }) });
                   const d = await r.json();
-                  setMsg({ text: `✅ ${d.insertados} filas reemplazadas para el asociado en "${editLiqPeriodo}".`, ok: true });
+                  setMsg({ text: `✅ ${d.insertados} filas reemplazadas para ${cuils.length} asociado(s) en "${editLiqPeriodo}".`, ok: true });
                   setEditLiqCargando(false);
                 }}>{editLiqCargando ? "Procesando..." : "✅ Reemplazar liquidación"}</Btn>
               </Card>
