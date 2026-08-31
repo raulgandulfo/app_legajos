@@ -14,15 +14,19 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("sanciones")
-      .select("*, maestro_asociados!left(nombre_completo, nro_legajo)")
+      .select("*")
       .order("fecha_desde", { ascending: false });
 
     if (filtroCuil) query = query.eq("cuil_asociado", filtroCuil);
     if (desde) query = query.gte("fecha_desde", desde);
     if (hasta) query = query.lte("fecha_desde", hasta);
 
-    const { data } = await query;
-    return NextResponse.json(data || []);
+    const { data: sanciones } = await query;
+    const { data: asos } = await supabase.from("maestro_asociados").select("cuil, nombre_completo, nro_legajo");
+    const asoMap: Record<string, { nombre_completo: string; nro_legajo?: string }> = {};
+    for (const a of asos || []) asoMap[a.cuil] = a;
+    const result = (sanciones || []).map(s => ({ ...s, maestro_asociados: asoMap[s.cuil_asociado] || null }));
+    return NextResponse.json(result);
   }
 
   if (cuil) {
