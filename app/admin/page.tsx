@@ -1260,7 +1260,7 @@ export default function AdminPage() {
                         const aso = asociados.find(a => a.cuil === s.cuil_asociado);
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
-                            <td className="px-3 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-3 py-2">{s.maestro_asociados?.nro_legajo || aso?.nro_legajo || aso?.nro_asociado || "-"}</td>
                             <td className="px-3 py-2">{s.cuil_asociado}</td>
                             <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
                             <td className="px-3 py-2">{s.tipo}</td>
@@ -1276,7 +1276,7 @@ export default function AdminPage() {
                   <Btn variant="secondary" className="mt-3" onClick={async () => {
                     const XLSX = await import("xlsx");
                     const rows = sanReporte.map(s => ({
-                      Legajo: asociados.find(a => a.cuil === s.cuil_asociado)?.nro_asociado || "",
+                      Legajo: s.maestro_asociados?.nro_legajo || asociados.find(a => a.cuil === s.cuil_asociado)?.nro_legajo || "",
                       CUIL: s.cuil_asociado,
                       Nombre: s.maestro_asociados?.nombre_completo || "",
                       Tipo: s.tipo,
@@ -1352,7 +1352,7 @@ export default function AdminPage() {
                         const aso = asociados.find(a => a.cuil === c.cuil_asociado);
                         return (
                           <tr key={c.id} className="border-t border-gray-100">
-                            <td className="px-3 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-3 py-2">{aso?.nro_legajo || aso?.nro_asociado || "-"}</td>
                             <td className="px-3 py-2">{c.maestro_asociados?.nombre_completo}</td>
                             <td className="px-3 py-2">{c.titulo}</td>
                             <td className="px-3 py-2">{c.fecha}</td>
@@ -1377,7 +1377,7 @@ export default function AdminPage() {
                   <Btn variant="secondary" className="mt-3" onClick={async () => {
                     const XLSX = await import("xlsx");
                     const rows = capReporte.map(c => ({
-                      Legajo: asociados.find(a => a.cuil === c.cuil_asociado)?.nro_asociado || "",
+                      Legajo: asociados.find(a => a.cuil === c.cuil_asociado)?.nro_legajo || "",
                       Nombre: c.maestro_asociados?.nombre_completo || "",
                       Capacitacion: c.titulo,
                       Fecha: c.fecha,
@@ -1455,7 +1455,7 @@ export default function AdminPage() {
                           : 1;
                         return (
                           <tr key={h.id} className="border-t border-gray-100">
-                            <td className="px-4 py-2">{aso?.nro_asociado || "-"}</td>
+                            <td className="px-4 py-2">{aso?.nro_legajo || aso?.nro_asociado || "-"}</td>
                             <td className="px-4 py-2">{h.cuil_asociado}</td>
                             <td className="px-4 py-2">{(h.maestro_asociados as { nombre_completo?: string } | undefined)?.nombre_completo || aso?.nombre_completo || "-"}</td>
                             <td className="px-4 py-2">{h.fecha_desde}</td>
@@ -1474,7 +1474,7 @@ export default function AdminPage() {
                     const rows = medHistorial.map(h => {
                       const aso = asociados.find(a => a.cuil === h.cuil_asociado);
                       const dias = h.fecha_desde && h.fecha_hasta ? Math.round((new Date(h.fecha_hasta).getTime() - new Date(h.fecha_desde).getTime()) / 86400000) + 1 : 1;
-                      return { Legajo: aso?.nro_asociado || "", CUIL: h.cuil_asociado, Nombre: aso?.nombre_completo || "", Desde: h.fecha_desde, Hasta: h.fecha_hasta, Dias: dias, Motivo: h.motivo };
+                      return { Legajo: aso?.nro_legajo || aso?.nro_asociado || "", CUIL: h.cuil_asociado, Nombre: aso?.nombre_completo || "", Desde: h.fecha_desde, Hasta: h.fecha_hasta, Dias: dias, Motivo: h.motivo };
                     });
                     const ws = XLSX.utils.json_to_sheet(rows);
                     const wb = XLSX.utils.book_new();

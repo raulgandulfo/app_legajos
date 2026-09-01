@@ -17,7 +17,7 @@ export async function GET() {
     supabase.from("prestamos_cuotas").select("*", { count: "exact", head: true }).eq("estado", "Pendiente"),
     supabase.from("prestamos_cuotas").select("*", { count: "exact", head: true })
       .eq("estado", "Pendiente").lt("fecha_vencimiento", hoy),
-    supabase.from("sanciones").select("*", { count: "exact", head: true }).gte("fecha_hasta", hace30),
+    supabase.from("sanciones").select("*", { count: "exact", head: true }).gte("fecha_hasta", hoy),
     supabase.from("historial_medico").select("*", { count: "exact", head: true }).gte("fecha_desde", hace30),
   ]);
 
