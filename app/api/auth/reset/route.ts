@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
@@ -36,8 +37,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tenés cuenta creada. Usá la opción Registrarme." }, { status: 400 });
   }
 
+  const password_hash = await bcrypt.hash(password, 12);
   const { error } = await supabase
-    .from("usuarios").update({ password }).eq("username", cuil);
+    .from("usuarios").update({ password, password_hash }).eq("username", cuil);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

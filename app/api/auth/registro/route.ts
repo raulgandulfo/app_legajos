@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   const supabase = getSupabase();
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
 
   if (yaExiste) return NextResponse.json({ error: "Este CUIL ya tiene usuario. Si olvidó la clave, contacte a RRHH." }, { status: 400 });
 
-  await supabase.from("usuarios").insert({ username: cuil, password, rol: "asociado", cuil_asociado: cuil });
+  const password_hash = await bcrypt.hash(password, 12);
+  await supabase.from("usuarios").insert({ username: cuil, password, password_hash, rol: "asociado", cuil_asociado: cuil });
   return NextResponse.json({ ok: true });
 }
