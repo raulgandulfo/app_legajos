@@ -104,13 +104,14 @@ export default function AdminPage() {
   const [antFecha, setAntFecha] = useState(new Date().toISOString().slice(0, 10));
   const [antObs, setAntObs] = useState("");
   const [antEditCuil, setAntEditCuil] = useState("");
-  const [anticipos, setAnticipos] = useState<{ id: number; cuil_asociado: string; monto: number; fecha_solicitud: string; estado: string; observaciones?: string; maestro_asociados?: { nombre_completo: string; nro_asociado?: string; nro_legajo?: string } }[]>([]);
+  const [anticipos, setAnticipos] = useState<{ id: number; cuil_asociado: string; monto: number; fecha_solicitud: string; estado: string; observaciones?: string; maestro_asociados?: { nombre_completo: string; nro_asociado?: string; nro_legajo?: string; sector?: string } }[]>([]);
   const [antEditData, setAntEditData] = useState<Record<number, { monto: number; fecha: string; estado: string; obs: string }>>({});
   const [antRepCuil, setAntRepCuil] = useState("");
   const [antRepData, setAntRepData] = useState<typeof anticipos>([]);
   const [antRepDesde, setAntRepDesde] = useState("");
   const [antRepHasta, setAntRepHasta] = useState("");
   const [antRepLoading, setAntRepLoading] = useState(false);
+  const [antRepSector, setAntRepSector] = useState("");
 
   // --- Sanciones ---
   const [sanTab, setSanTab] = useState("nueva");
@@ -1166,9 +1167,18 @@ export default function AdminPage() {
 
                 <Card>
                   <h3 className="font-bold text-sm mb-3">Reporte por Fechas</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
                     <div><Label>Desde</Label><Input type="date" value={antRepDesde} onChange={e => setAntRepDesde(e.target.value)} /></div>
                     <div><Label>Hasta</Label><Input type="date" value={antRepHasta} onChange={e => setAntRepHasta(e.target.value)} /></div>
+                    <div>
+                      <Label>Sector (opcional)</Label>
+                      <Select value={antRepSector} onChange={e => setAntRepSector(e.target.value)}>
+                        <option value="">— Todos los sectores —</option>
+                        {[...new Set(asociados.filter(a => a.sector).map(a => a.sector!))].sort().map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </Select>
+                    </div>
                   </div>
                   <Btn disabled={antRepLoading} onClick={async () => {
                     setAntRepLoading(true);
@@ -1176,12 +1186,16 @@ export default function AdminPage() {
                     if (antRepDesde) params.set("fecha_desde", antRepDesde);
                     if (antRepHasta) params.set("fecha_hasta", antRepHasta);
                     const r = await fetch(`/api/anticipos?${params}`);
-                    const d: typeof anticipos = await r.json();
+                    let d: typeof anticipos = await r.json();
+                    if (antRepSector) {
+                      d = d.filter(a => (a.maestro_asociados as { sector?: string } | undefined)?.sector === antRepSector);
+                    }
                     if (!d.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setAntRepLoading(false); return; }
                     const XLSX = await import("xlsx");
                     const rows = d.map(a => ({
                       "Nº LEGAJO": a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "",
                       "NOMBRE": a.maestro_asociados?.nombre_completo || "",
+                      "SECTOR": (a.maestro_asociados as { sector?: string } | undefined)?.sector || "",
                       "CODIGO": "0408",
                       "FECHA": a.fecha_solicitud,
                       "MONTO": a.monto,
@@ -1191,7 +1205,8 @@ export default function AdminPage() {
                     const ws = XLSX.utils.json_to_sheet(rows);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
-                    XLSX.writeFile(wb, "anticipos_reporte.xlsx");
+                    const sufSector = antRepSector ? `_${antRepSector.replace(/\s+/g, "_")}` : "";
+                    XLSX.writeFile(wb, `anticipos${sufSector}_reporte.xlsx`);
                     setAntRepLoading(false);
                   }}>{antRepLoading ? "Generando..." : "📊 Exportar XLSX"}</Btn>
                 </Card>

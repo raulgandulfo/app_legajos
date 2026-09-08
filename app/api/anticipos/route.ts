@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     await auditLog("consulta", "Consultó reporte de anticipos");
     let query = supabase
       .from("anticipos")
-      .select("*, maestro_asociados(cuil, nro_asociado, nro_legajo, nombre_completo)")
+      .select("*, maestro_asociados(cuil, nro_asociado, nro_legajo, nombre_completo, sector)")
       .order("fecha_solicitud", { ascending: false });
     if (fechaDesde) query = query.gte("fecha_solicitud", fechaDesde);
     if (fechaHasta) query = query.lte("fecha_solicitud", fechaHasta);
