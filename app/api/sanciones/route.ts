@@ -52,3 +52,21 @@ export async function POST(req: NextRequest) {
   await auditLog("alta", `Registró sanción (${body.tipo}) para CUIL ${body.cuil}`);
   return NextResponse.json({ ok: true });
 }
+
+export async function PATCH(req: NextRequest) {
+  const supabase = getSupabase();
+  const body = await req.json();
+  const fecha_desde = body.tipo === "Suspensión" ? body.fecha_desde : body.fecha_sancion;
+  const fecha_hasta = body.tipo === "Suspensión" ? body.fecha_hasta : body.fecha_sancion;
+  await supabase.from("sanciones").update({ tipo: body.tipo, fecha_desde, fecha_hasta, motivo: body.motivo }).eq("id", body.id);
+  await auditLog("modificacion", `Editó sanción id ${body.id}`);
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: NextRequest) {
+  const supabase = getSupabase();
+  const { id } = await req.json();
+  await supabase.from("sanciones").delete().eq("id", id);
+  await auditLog("baja", `Eliminó sanción id ${id}`);
+  return NextResponse.json({ ok: true });
+}

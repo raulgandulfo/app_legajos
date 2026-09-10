@@ -125,6 +125,8 @@ export default function AdminPage() {
   const [sanRepCuil, setSanRepCuil] = useState("");
   const [sanRepDesde, setSanRepDesde] = useState("");
   const [sanRepHasta, setSanRepHasta] = useState("");
+  const [sanEditId, setSanEditId] = useState<number | null>(null);
+  const [sanEditData, setSanEditData] = useState<{ tipo: string; fecha_desde: string; fecha_hasta: string; motivo: string }>({ tipo: "", fecha_desde: "", fecha_hasta: "", motivo: "" });
 
   // --- Inasistencias ---
   const [medTab, setMedTab] = useState("nueva");
@@ -1269,18 +1271,68 @@ export default function AdminPage() {
                 </Card>
                 <div className="bg-white rounded-xl shadow overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Tipo","Fecha","Motivo"].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
+                    <thead className="bg-gray-50 text-gray-600"><tr>{["Legajo","CUIL","Nombre","Tipo","Fecha","Motivo",""].map(h => <th key={h} className="text-left px-3 py-3">{h}</th>)}</tr></thead>
                     <tbody>
                       {sanReporte.map(s => {
                         const aso = asociados.find(a => a.cuil === s.cuil_asociado);
+                        const editing = sanEditId === s.id;
                         return (
                           <tr key={s.id} className="border-t border-gray-100">
-                            <td className="px-3 py-2">{s.maestro_asociados?.nro_legajo || aso?.nro_legajo || aso?.nro_asociado || "-"}</td>
-                            <td className="px-3 py-2">{s.cuil_asociado}</td>
-                            <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
-                            <td className="px-3 py-2">{s.tipo}</td>
-                            <td className="px-3 py-2">{s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde}</td>
-                            <td className="px-3 py-2">{s.motivo}</td>
+                            {editing ? (
+                              <>
+                                <td className="px-3 py-2" colSpan={2}>{s.maestro_asociados?.nro_legajo || aso?.nro_legajo || "-"}</td>
+                                <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
+                                <td className="px-3 py-2">
+                                  <Select value={sanEditData.tipo} onChange={e => setSanEditData(d => ({ ...d, tipo: e.target.value }))}>
+                                    {["Apercibimiento","Suspensión"].map(t => <option key={t}>{t}</option>)}
+                                  </Select>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {sanEditData.tipo === "Suspensión" ? (
+                                    <div className="flex gap-1">
+                                      <Input type="date" value={sanEditData.fecha_desde} onChange={e => setSanEditData(d => ({ ...d, fecha_desde: e.target.value }))} />
+                                      <Input type="date" value={sanEditData.fecha_hasta} onChange={e => setSanEditData(d => ({ ...d, fecha_hasta: e.target.value }))} />
+                                    </div>
+                                  ) : (
+                                    <Input type="date" value={sanEditData.fecha_desde} onChange={e => setSanEditData(d => ({ ...d, fecha_desde: e.target.value, fecha_hasta: e.target.value }))} />
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Input value={sanEditData.motivo} onChange={e => setSanEditData(d => ({ ...d, motivo: e.target.value }))} />
+                                </td>
+                                <td className="px-3 py-2 flex gap-1">
+                                  <Btn onClick={async () => {
+                                    await fetch("/api/sanciones", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: s.id, tipo: sanEditData.tipo, fecha_desde: sanEditData.fecha_desde, fecha_hasta: sanEditData.fecha_hasta, fecha_sancion: sanEditData.fecha_desde, motivo: sanEditData.motivo }) });
+                                    setSanEditId(null);
+                                    const p = new URLSearchParams({ reporte: "1" });
+                                    if (sanRepCuil) p.set("cuil_filtro", sanRepCuil);
+                                    if (sanRepDesde) p.set("desde", sanRepDesde);
+                                    if (sanRepHasta) p.set("hasta", sanRepHasta);
+                                    setSanReporte(await (await fetch(`/api/sanciones?${p}`)).json());
+                                    setMsg({ text: "Sanción actualizada.", ok: true });
+                                  }}>💾</Btn>
+                                  <Btn variant="secondary" onClick={() => setSanEditId(null)}>✕</Btn>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-3 py-2">{s.maestro_asociados?.nro_legajo || aso?.nro_legajo || aso?.nro_asociado || "-"}</td>
+                                <td className="px-3 py-2">{s.cuil_asociado}</td>
+                                <td className="px-3 py-2">{s.maestro_asociados?.nombre_completo}</td>
+                                <td className="px-3 py-2">{s.tipo}</td>
+                                <td className="px-3 py-2">{s.tipo === "Suspensión" ? `${s.fecha_desde} → ${s.fecha_hasta}` : s.fecha_desde}</td>
+                                <td className="px-3 py-2">{s.motivo}</td>
+                                <td className="px-3 py-2 flex gap-1">
+                                  <Btn variant="secondary" onClick={() => { setSanEditId(s.id); setSanEditData({ tipo: s.tipo, fecha_desde: s.fecha_desde, fecha_hasta: s.fecha_hasta, motivo: s.motivo }); }}>✏️</Btn>
+                                  <Btn variant="danger" onClick={async () => {
+                                    if (!confirm("¿Eliminar esta sanción?")) return;
+                                    await fetch("/api/sanciones", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: s.id }) });
+                                    setSanReporte(prev => prev.filter(x => x.id !== s.id));
+                                    setMsg({ text: "Sanción eliminada.", ok: true });
+                                  }}>🗑️</Btn>
+                                </td>
+                              </>
+                            )}
                           </tr>
                         );
                       })}
