@@ -108,6 +108,7 @@ export default function AdminPage() {
   const [antEditData, setAntEditData] = useState<Record<number, { monto: number; fecha: string; estado: string; obs: string }>>({});
   const [antRepCuil, setAntRepCuil] = useState("");
   const [antRepData, setAntRepData] = useState<typeof anticipos>([]);
+  const [antRepEdit, setAntRepEdit] = useState<Record<number, string>>({});
   const [antRepDesde, setAntRepDesde] = useState("");
   const [antRepHasta, setAntRepHasta] = useState("");
   const [antRepLoading, setAntRepLoading] = useState(false);
@@ -1170,11 +1171,11 @@ export default function AdminPage() {
                 <Card>
                   <h3 className="font-bold text-sm mb-3">Reporte por Fechas</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
-                    <div><Label>Desde</Label><Input type="date" value={antRepDesde} onChange={e => setAntRepDesde(e.target.value)} /></div>
-                    <div><Label>Hasta</Label><Input type="date" value={antRepHasta} onChange={e => setAntRepHasta(e.target.value)} /></div>
+                    <div><Label>Desde</Label><Input type="date" value={antRepDesde} onChange={e => { setAntRepDesde(e.target.value); setAntRepData([]); setAntRepEdit({}); }} /></div>
+                    <div><Label>Hasta</Label><Input type="date" value={antRepHasta} onChange={e => { setAntRepHasta(e.target.value); setAntRepData([]); setAntRepEdit({}); }} /></div>
                     <div>
                       <Label>Sector (opcional)</Label>
-                      <Select value={antRepSector} onChange={e => setAntRepSector(e.target.value)}>
+                      <Select value={antRepSector} onChange={e => { setAntRepSector(e.target.value); setAntRepData([]); setAntRepEdit({}); }}>
                         <option value="">— Todos los sectores —</option>
                         {[...new Set(asociados.filter(a => a.sector).map(a => a.sector!))].sort().map(s => (
                           <option key={s} value={s}>{s}</option>
@@ -1189,28 +1190,81 @@ export default function AdminPage() {
                     if (antRepHasta) params.set("fecha_hasta", antRepHasta);
                     const r = await fetch(`/api/anticipos?${params}`);
                     let d: typeof anticipos = await r.json();
-                    if (antRepSector) {
-                      d = d.filter(a => (a.maestro_asociados as { sector?: string } | undefined)?.sector === antRepSector);
-                    }
+                    if (antRepSector) d = d.filter(a => (a.maestro_asociados as { sector?: string } | undefined)?.sector === antRepSector);
                     if (!d.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setAntRepLoading(false); return; }
-                    const XLSX = await import("xlsx");
-                    const rows = d.map(a => ({
-                      "Nº LEGAJO": a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "",
-                      "NOMBRE": a.maestro_asociados?.nombre_completo || "",
-                      "SECTOR": (a.maestro_asociados as { sector?: string } | undefined)?.sector || "",
-                      "CODIGO": "0408",
-                      "FECHA": a.fecha_solicitud,
-                      "MONTO": a.monto,
-                      "ESTADO": a.estado,
-                      "OBSERVACIONES": a.observaciones || "",
-                    }));
-                    const ws = XLSX.utils.json_to_sheet(rows);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
-                    const sufSector = antRepSector ? `_${antRepSector.replace(/\s+/g, "_")}` : "";
-                    XLSX.writeFile(wb, `anticipos${sufSector}_reporte.xlsx`);
+                    setAntRepData(d);
+                    const edits: Record<number, string> = {};
+                    d.forEach(a => { edits[a.id] = a.estado; });
+                    setAntRepEdit(edits);
                     setAntRepLoading(false);
-                  }}>{antRepLoading ? "Generando..." : "📊 Exportar XLSX"}</Btn>
+                  }}>{antRepLoading ? "Buscando..." : "🔍 Buscar"}</Btn>
+
+                  {antRepData.length > 0 && (
+                    <div className="mt-4">
+                      <div className="overflow-x-auto mb-3">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 text-gray-600">
+                            <tr>{["Legajo","Nombre","Sector","Fecha","Monto","Estado",""].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                          </thead>
+                          <tbody>
+                            {antRepData.map(a => (
+                              <tr key={a.id} className="border-t border-gray-100">
+                                <td className="px-3 py-1.5">{a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "-"}</td>
+                                <td className="px-3 py-1.5">{a.maestro_asociados?.nombre_completo}</td>
+                                <td className="px-3 py-1.5 text-gray-500">{(a.maestro_asociados as { sector?: string } | undefined)?.sector || "-"}</td>
+                                <td className="px-3 py-1.5">{a.fecha_solicitud}</td>
+                                <td className="px-3 py-1.5">${fmt(a.monto)}</td>
+                                <td className="px-3 py-1.5">
+                                  <Select value={antRepEdit[a.id] ?? a.estado} onChange={e => setAntRepEdit(prev => ({ ...prev, [a.id]: e.target.value }))}>
+                                    {["Pendiente","Descontado"].map(s => <option key={s}>{s}</option>)}
+                                  </Select>
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <Btn variant="secondary" onClick={async () => {
+                                    const nuevoEstado = antRepEdit[a.id] ?? a.estado;
+                                    await fetch("/api/anticipos", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id, monto: a.monto, fecha_solicitud: a.fecha_solicitud, estado: nuevoEstado, observaciones: a.observaciones }) });
+                                    setAntRepData(prev => prev.map(x => x.id === a.id ? { ...x, estado: nuevoEstado } : x));
+                                    setMsg({ text: "Estado actualizado.", ok: true });
+                                  }}>💾</Btn>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <Btn variant="secondary" onClick={async () => {
+                          const pendientes = antRepData.filter(a => (antRepEdit[a.id] ?? a.estado) === "Pendiente");
+                          if (!pendientes.length) { setMsg({ text: "No hay pendientes para marcar.", ok: false }); return; }
+                          if (!confirm(`¿Marcar ${pendientes.length} anticipo(s) como Descontado?`)) return;
+                          await Promise.all(pendientes.map(a => fetch("/api/anticipos", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id, monto: a.monto, fecha_solicitud: a.fecha_solicitud, estado: "Descontado", observaciones: a.observaciones }) })));
+                          const newEdit = { ...antRepEdit };
+                          pendientes.forEach(a => { newEdit[a.id] = "Descontado"; });
+                          setAntRepEdit(newEdit);
+                          setAntRepData(prev => prev.map(a => pendientes.find(p => p.id === a.id) ? { ...a, estado: "Descontado" } : a));
+                          setMsg({ text: `${pendientes.length} anticipos marcados como Descontado.`, ok: true });
+                        }}>✅ Marcar todos como Descontado</Btn>
+                        <Btn variant="secondary" onClick={async () => {
+                          const XLSX = await import("xlsx");
+                          const rows = antRepData.map(a => ({
+                            "Nº LEGAJO": a.maestro_asociados?.nro_legajo || a.maestro_asociados?.nro_asociado || "",
+                            "NOMBRE": a.maestro_asociados?.nombre_completo || "",
+                            "SECTOR": (a.maestro_asociados as { sector?: string } | undefined)?.sector || "",
+                            "CODIGO": "0408",
+                            "FECHA": a.fecha_solicitud,
+                            "MONTO": a.monto,
+                            "ESTADO": antRepEdit[a.id] ?? a.estado,
+                            "OBSERVACIONES": a.observaciones || "",
+                          }));
+                          const ws = XLSX.utils.json_to_sheet(rows);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
+                          const sufSector = antRepSector ? `_${antRepSector.replace(/\s+/g, "_")}` : "";
+                          XLSX.writeFile(wb, `anticipos${sufSector}_reporte.xlsx`);
+                        }}>📊 Exportar XLSX</Btn>
+                      </div>
+                    </div>
+                  )}
                 </Card>
               </div>
             )}
