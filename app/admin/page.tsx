@@ -112,7 +112,8 @@ export default function AdminPage() {
   const [antRepDesde, setAntRepDesde] = useState("");
   const [antRepHasta, setAntRepHasta] = useState("");
   const [antRepLoading, setAntRepLoading] = useState(false);
-  const [antRepSector, setAntRepSector] = useState("");
+  const [antRepSectores, setAntRepSectores] = useState<string[]>([]);
+  const [antRepSectorOpen, setAntRepSectorOpen] = useState(false);
 
   // --- Sanciones ---
   const [sanTab, setSanTab] = useState("nueva");
@@ -1173,24 +1174,43 @@ export default function AdminPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
                     <div><Label>Desde</Label><Input type="date" value={antRepDesde} onChange={e => { setAntRepDesde(e.target.value); setAntRepData([]); setAntRepEdit({}); }} /></div>
                     <div><Label>Hasta</Label><Input type="date" value={antRepHasta} onChange={e => { setAntRepHasta(e.target.value); setAntRepData([]); setAntRepEdit({}); }} /></div>
-                    <div>
+                    <div className="relative">
                       <Label>Sector (opcional)</Label>
-                      <Select value={antRepSector} onChange={e => { setAntRepSector(e.target.value); setAntRepData([]); setAntRepEdit({}); }}>
-                        <option value="">— Todos los sectores —</option>
-                        {[...new Set(asociados.filter(a => a.sector).map(a => a.sector!))].sort().map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </Select>
+                      <button type="button" onClick={() => setAntRepSectorOpen(o => !o)} className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                        {antRepSectores.length === 0 ? "— Todos los sectores —" : antRepSectores.length === 1 ? antRepSectores[0] : `${antRepSectores.length} sectores seleccionados`}
+                      </button>
+                      {antRepSectorOpen && (
+                        <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg p-2">
+                          <label className="flex items-center gap-2 px-2 py-1.5 text-sm border-b border-gray-100 mb-1 font-medium">
+                            <input type="checkbox" checked={antRepSectores.length === 0} onChange={() => { setAntRepSectores([]); setAntRepData([]); setAntRepEdit({}); }} />
+                            Todos los sectores
+                          </label>
+                          {[...new Set(asociados.filter(a => a.sector).map(a => a.sector!))].sort().map(s => (
+                            <label key={s} className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-gray-50 rounded">
+                              <input
+                                type="checkbox"
+                                checked={antRepSectores.includes(s)}
+                                onChange={e => {
+                                  setAntRepSectores(prev => e.target.checked ? [...prev, s] : prev.filter(x => x !== s));
+                                  setAntRepData([]); setAntRepEdit({});
+                                }}
+                              />
+                              {s}
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Btn disabled={antRepLoading} onClick={async () => {
+                    setAntRepSectorOpen(false);
                     setAntRepLoading(true);
                     const params = new URLSearchParams({ reporte: "1" });
                     if (antRepDesde) params.set("fecha_desde", antRepDesde);
                     if (antRepHasta) params.set("fecha_hasta", antRepHasta);
                     const r = await fetch(`/api/anticipos?${params}`);
                     let d: typeof anticipos = await r.json();
-                    if (antRepSector) d = d.filter(a => (a.maestro_asociados as { sector?: string } | undefined)?.sector === antRepSector);
+                    if (antRepSectores.length) d = d.filter(a => antRepSectores.includes((a.maestro_asociados as { sector?: string } | undefined)?.sector || ""));
                     if (!d.length) { setMsg({ text: "Sin resultados con esos filtros.", ok: false }); setAntRepLoading(false); return; }
                     setAntRepData(d);
                     const edits: Record<number, string> = {};
@@ -1259,7 +1279,7 @@ export default function AdminPage() {
                           const ws = XLSX.utils.json_to_sheet(rows);
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, "Anticipos");
-                          const sufSector = antRepSector ? `_${antRepSector.replace(/\s+/g, "_")}` : "";
+                          const sufSector = antRepSectores.length === 1 ? `_${antRepSectores[0].replace(/\s+/g, "_")}` : "";
                           XLSX.writeFile(wb, `anticipos${sufSector}_reporte.xlsx`);
                         }}>📊 Exportar XLSX</Btn>
                       </div>
