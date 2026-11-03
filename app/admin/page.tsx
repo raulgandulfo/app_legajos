@@ -216,6 +216,13 @@ export default function AdminPage() {
   const [repLiqRows, setRepLiqRows] = useState<{ descripcion: string; tipo_concepto: string; cantidad: number; importe: number; neto?: number; jornal_basico?: number; sector?: string; categoria?: string; periodo?: string }[]>([]);
   const [repLiqLoading, setRepLiqLoading] = useState(false);
 
+  // --- Costos por sector ---
+  const [costSectoresSel, setCostSectoresSel] = useState<string[]>([]);
+  const [costPeriodosSel, setCostPeriodosSel] = useState<string[]>([]);
+  const [costLoading, setCostLoading] = useState(false);
+  const [costData, setCostData] = useState<{ cuil: string; nombre: string; legajo: string; sector: string; rem: number; noRem: number; ret: number; neto: number }[] | null>(null);
+
+
   // --- Dashboard ---
   const [dash, setDash] = useState<{ totalActivos: number; cuotasPendientes: number; cuotasVencidas: number; sancionesVigentes: number; inasistencias30: number } | null>(null);
 
@@ -1870,6 +1877,172 @@ export default function AdminPage() {
                           </div>
                         );
                       })}
+                    </div>
+                  );
+                })()}
+              </Card>
+            </div>
+
+            {/* Reporte de costos por sector */}
+            <div className="mt-6">
+              <h3 className="font-bold text-[#1e293b] mb-3">💰 Costos por Sector</h3>
+              <Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label>Sectores (uno o más)</Label>
+                    <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                      <label className="flex items-center gap-2 text-sm font-medium px-2 py-1 border-b border-gray-100 mb-1">
+                        <input type="checkbox" checked={costSectoresSel.length === 0} onChange={() => { setCostSectoresSel([]); setCostData(null); }} />
+                        Todos los sectores
+                      </label>
+                      {sectores.map(s => (
+                        <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                          <input type="checkbox" checked={costSectoresSel.includes(s.nombre)} onChange={e => {
+                            setCostSectoresSel(prev => e.target.checked ? [...prev, s.nombre] : prev.filter(x => x !== s.nombre));
+                            setCostData(null);
+                          }} />
+                          {s.nombre}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Períodos (uno o más)</Label>
+                    <Input placeholder="Filtrar por período o año..." className="mb-2" onChange={e => {
+                      const v = e.target.value.toLowerCase();
+                      const list = document.getElementById("cost-periodos-list");
+                      if (list) list.querySelectorAll("label").forEach(l => {
+                        (l as HTMLElement).style.display = l.textContent?.toLowerCase().includes(v) ? "" : "none";
+                      });
+                    }} />
+                    <div id="cost-periodos-list" className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto p-2 space-y-1">
+                      {periodos.map(p => (
+                        <label key={p} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                          <input type="checkbox" checked={costPeriodosSel.includes(p)} onChange={e => {
+                            setCostPeriodosSel(prev => e.target.checked ? [...prev, p] : prev.filter(x => x !== p));
+                            setCostData(null);
+                          }} />
+                          {p}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <Btn disabled={costPeriodosSel.length === 0 || costLoading} onClick={async () => {
+                  setCostLoading(true);
+                  const r = await fetch(`/api/liquidaciones?periodos=${encodeURIComponent(costPeriodosSel.join(","))}`);
+                  const rows: { cuil: string; periodo: string; tipo_concepto: string; importe: number; haberes_rem?: number; haberes_no_rem?: number; retenciones?: number; neto?: number }[] = await r.json();
+
+                  // Agrupar por cuil+periodo y tomar el máximo de los campos que se repiten por fila (ver CLAUDE.md)
+                  type Acc = { rem: number; noRem: number; ret: number; neto: number };
+                  const porCuilPeriodo = new Map<string, Acc>();
+                  for (const row of rows) {
+                    const key = `${row.cuil}__${row.periodo}`;
+                    const prev = porCuilPeriodo.get(key) || { rem: 0, noRem: 0, ret: 0, neto: 0 };
+                    porCuilPeriodo.set(key, {
+                      rem: Math.max(prev.rem, row.haberes_rem || 0),
+                      noRem: Math.max(prev.noRem, row.haberes_no_rem || 0),
+                      ret: Math.max(prev.ret, row.retenciones || 0),
+                      neto: Math.max(prev.neto, row.neto || 0),
+                    });
+                  }
+
+                  // Sumar entre períodos, por asociado
+                  const porCuil = new Map<string, Acc>();
+                  for (const [key, acc] of porCuilPeriodo) {
+                    const cuil = key.split("__")[0];
+                    const prev = porCuil.get(cuil) || { rem: 0, noRem: 0, ret: 0, neto: 0 };
+                    porCuil.set(cuil, {
+                      rem: prev.rem + acc.rem,
+                      noRem: prev.noRem + acc.noRem,
+                      ret: prev.ret + acc.ret,
+                      neto: prev.neto + acc.neto,
+                    });
+                  }
+
+                  const todos = [...asociados, ...todosAsociados];
+                  let result = [...porCuil.entries()].map(([cuil, acc]) => {
+                    const aso = todos.find(a => a.cuil === cuil);
+                    return {
+                      cuil,
+                      nombre: aso?.nombre_completo || cuil,
+                      legajo: aso?.nro_legajo || aso?.nro_asociado || "-",
+                      sector: aso?.sector || "Sin sector",
+                      ...acc,
+                    };
+                  });
+
+                  if (costSectoresSel.length) result = result.filter(r => costSectoresSel.includes(r.sector));
+                  result.sort((a, b) => a.sector.localeCompare(b.sector, "es") || a.nombre.localeCompare(b.nombre, "es"));
+
+                  if (!result.length) { setMsg({ text: "Sin datos con esos filtros.", ok: false }); setCostLoading(false); return; }
+                  setCostData(result);
+                  setCostLoading(false);
+                }}>{costLoading ? "Calculando..." : "🔍 Calcular"}</Btn>
+
+                {costData && (() => {
+                  const porSector = new Map<string, typeof costData>();
+                  for (const row of costData) {
+                    if (!porSector.has(row.sector)) porSector.set(row.sector, []);
+                    porSector.get(row.sector)!.push(row);
+                  }
+                  const totalGeneral = costData.reduce((s, r) => ({ rem: s.rem + r.rem, noRem: s.noRem + r.noRem, ret: s.ret + r.ret, neto: s.neto + r.neto }), { rem: 0, noRem: 0, ret: 0, neto: 0 });
+
+                  return (
+                    <div className="mt-4 space-y-5">
+                      {[...porSector.entries()].map(([sector, filas]) => {
+                        const sub = filas.reduce((s, r) => ({ rem: s.rem + r.rem, noRem: s.noRem + r.noRem, ret: s.ret + r.ret, neto: s.neto + r.neto }), { rem: 0, noRem: 0, ret: 0, neto: 0 });
+                        return (
+                          <div key={sector}>
+                            <h4 className="font-bold text-sm text-[#1e293b] mb-2">{sector} <span className="text-gray-400 font-normal">({filas.length} asociados)</span></h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                  <tr>{["Legajo","Nombre","Remunerativo","No Remunerativo","Retenciones","Neto"].map(h => <th key={h} className="text-left px-3 py-2">{h}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                  {filas.map(r => (
+                                    <tr key={r.cuil} className="border-t border-gray-100">
+                                      <td className="px-3 py-1.5">{r.legajo}</td>
+                                      <td className="px-3 py-1.5">{r.nombre}</td>
+                                      <td className="px-3 py-1.5 font-mono">${fmt(r.rem)}</td>
+                                      <td className="px-3 py-1.5 font-mono">${fmt(r.noRem)}</td>
+                                      <td className="px-3 py-1.5 font-mono text-red-500">-${fmt(r.ret)}</td>
+                                      <td className="px-3 py-1.5 font-mono font-medium">${fmt(r.neto)}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold">
+                                    <td className="px-3 py-2" colSpan={2}>Subtotal {sector}</td>
+                                    <td className="px-3 py-2 font-mono">${fmt(sub.rem)}</td>
+                                    <td className="px-3 py-2 font-mono">${fmt(sub.noRem)}</td>
+                                    <td className="px-3 py-2 font-mono text-red-500">-${fmt(sub.ret)}</td>
+                                    <td className="px-3 py-2 font-mono">${fmt(sub.neto)}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className="border-t-2 border-[#1e293b] pt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm font-bold text-[#1e293b]">
+                        <span>TOTAL GENERAL ({costData.length} asociados)</span>
+                        <span>Remunerativo: ${fmt(totalGeneral.rem)}</span>
+                        <span>No Remunerativo: ${fmt(totalGeneral.noRem)}</span>
+                        <span className="text-red-500">Retenciones: -${fmt(totalGeneral.ret)}</span>
+                        <span>Neto: ${fmt(totalGeneral.neto)}</span>
+                      </div>
+                      <Btn variant="secondary" onClick={async () => {
+                        const XLSX = await import("xlsx");
+                        const rows = costData.map(r => ({
+                          "SECTOR": r.sector, "LEGAJO": r.legajo, "NOMBRE": r.nombre,
+                          "REMUNERATIVO": r.rem, "NO REMUNERATIVO": r.noRem, "RETENCIONES": r.ret, "NETO": r.neto,
+                        }));
+                        rows.push({ "SECTOR": "TOTAL GENERAL", "LEGAJO": "", "NOMBRE": "", "REMUNERATIVO": totalGeneral.rem, "NO REMUNERATIVO": totalGeneral.noRem, "RETENCIONES": totalGeneral.ret, "NETO": totalGeneral.neto });
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Costos por Sector");
+                        XLSX.writeFile(wb, "costos_por_sector.xlsx");
+                      }}>📊 Exportar XLSX</Btn>
                     </div>
                   );
                 })()}
