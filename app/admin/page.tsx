@@ -1816,15 +1816,24 @@ export default function AdminPage() {
                     <Label>Períodos (seleccioná uno o más)</Label>
                     {repLiqPeriodos.length === 0
                       ? <p className="text-xs text-gray-400 mt-2">Seleccioná un asociado para ver sus períodos</p>
-                      : <div className="border border-gray-200 rounded-lg max-h-36 overflow-y-auto">
-                          {repLiqPeriodos.map(p => (
-                            <label key={p} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer border-b border-gray-50">
-                              <input type="checkbox" checked={repLiqPeriodosSel.includes(p)}
-                                onChange={e => setRepLiqPeriodosSel(prev => e.target.checked ? [...prev, p] : prev.filter(x => x !== p))} />
-                              {p}
-                            </label>
-                          ))}
-                        </div>
+                      : <>
+                          <Input placeholder="Filtrar por período o año..." className="mb-2" onChange={e => {
+                            const v = e.target.value.toLowerCase();
+                            const list = document.getElementById("repliq-periodos-list");
+                            if (list) list.querySelectorAll("label").forEach(l => {
+                              (l as HTMLElement).style.display = l.textContent?.toLowerCase().includes(v) ? "" : "none";
+                            });
+                          }} />
+                          <div id="repliq-periodos-list" className="border border-gray-200 rounded-lg max-h-36 overflow-y-auto">
+                            {repLiqPeriodos.map(p => (
+                              <label key={p} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer border-b border-gray-50">
+                                <input type="checkbox" checked={repLiqPeriodosSel.includes(p)}
+                                  onChange={e => setRepLiqPeriodosSel(prev => e.target.checked ? [...prev, p] : prev.filter(x => x !== p))} />
+                                {p}
+                              </label>
+                            ))}
+                          </div>
+                        </>
                     }
                   </div>
                 </div>
