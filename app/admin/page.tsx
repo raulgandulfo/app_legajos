@@ -1886,6 +1886,15 @@ export default function AdminPage() {
                           </div>
                         );
                       })}
+                      {periodosMostrados.length > 1 && (
+                        <div className="mt-2 pt-3 border-t-2 border-[#1e293b] text-right font-bold text-lg text-[#1e293b]">
+                          TOTAL NETO ({periodosMostrados.length} períodos): $ {fmt(periodosMostrados.reduce((total, p) => {
+                            const filas = repLiqRows.filter(r => r.periodo === p && tiposValidos.includes(r.tipo_concepto));
+                            const neto = repLiqRows.find(r => r.periodo === p)?.neto || filas.reduce((s, r) => s + (r.tipo_concepto === "Retención" ? -Math.abs(r.importe) : r.importe), 0);
+                            return total + neto;
+                          }, 0))}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
